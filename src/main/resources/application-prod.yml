@@ -1,0 +1,23 @@
+# ============================================================================
+# CES Service — Production profile
+# Swagger disabled, INFO logging.
+# ============================================================================
+spring:
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# Swagger disabled in production
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.ces.service: INFO
+    org.springframework.security: WARN

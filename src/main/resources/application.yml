@@ -1,0 +1,105 @@
+# ============================================================================
+# CES Service Management System — Common configuration
+# Profile-specific overrides live in application-dev.yml / application-prod.yml
+# ============================================================================
+spring:
+  application:
+    name: ces-service
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ces_service_db}
+    username: ${SPRING_DATASOURCE_USERNAME:ces_service_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:ces_service_pass}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: ces-hikari
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ces_service
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+    show-sql: false
+
+  flyway:
+    enabled: true
+    schemas: ces_service
+    default-schema: ces_service
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    create-schemas: true
+    # Seed migrations contain Thymeleaf `${...}` template literals (e.g. document
+    # templates in V19). Flyway placeholder substitution would clash with them,
+    # and we use no Flyway placeholders, so turn it off.
+    placeholder-replacement: false
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:ces_dev_redis}
+      timeout: 3000ms
+
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-binding-errors: never
+  forward-headers-strategy: framework
+
+# ── JWT configuration ───────────────────────────────────────────────────────
+jwt:
+  secret: ${JWT_SECRET:Y2VzLXNlcnZpY2UtZGV2LXNlY3JldC1jaGFuZ2UtbWUtMzJieXRlcyE=}
+  # Access token TTL — 1 hour (ms)
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+  # Refresh token TTL — 7 days (ms)
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+  issuer: ces-service
+
+# ── CES ERP integration ─────────────────────────────────────────────────────
+ces:
+  erp:
+    base-url: ${CES_ERP_BASE_URL:https://erp.ces.az}
+    api-key: ${CES_ERP_API_KEY:}
+  security:
+    # System UUID used as fallback auditor when no authenticated user is present
+    system-user-id: 00000000-0000-0000-0000-000000000000
+  cors:
+    allowed-origins: ${CES_CORS_ALLOWED_ORIGINS:http://localhost:3000,https://service.ces.az}
+
+# ── Actuator ────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+
+# ── SpringDoc / Swagger ─────────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
