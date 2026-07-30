@@ -11,9 +11,11 @@ import com.ces.service.module.role.dto.RoleRequest;
 import com.ces.service.module.role.dto.RoleResponse;
 import com.ces.service.module.role.entity.Permission;
 import com.ces.service.module.role.entity.Role;
+import com.ces.service.module.role.entity.UserRole;
 import com.ces.service.module.role.repository.PermissionRepository;
 import com.ces.service.module.role.repository.RoleRepository;
 import com.ces.service.module.role.repository.UserRoleRepository;
+import com.ces.service.module.user.dto.UserResponse;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -162,6 +164,16 @@ public class RoleService {
         }
         role.getPermissions().removeIf(p -> p.getId().equals(permissionId));
         return RoleResponse.from(role, true);
+    }
+
+    /** Users currently holding this role (RBAC role → users panel). */
+    @Transactional(readOnly = true)
+    public List<UserResponse> getRoleUsers(UUID id) {
+        Role role = loadRole(id);
+        return userRoleRepository.findByRoleIdWithUser(role.getId()).stream()
+                .map(UserRole::getUser)
+                .map(UserResponse::from)
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)

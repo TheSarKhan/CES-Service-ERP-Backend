@@ -81,7 +81,7 @@ ces:
     # System UUID used as fallback auditor when no authenticated user is present
     system-user-id: 00000000-0000-0000-0000-000000000000
   cors:
-    allowed-origins: ${CES_CORS_ALLOWED_ORIGINS:http://localhost:3000,https://service.ces.az}
+    allowed-origins: ${CES_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,https://service.ces.az}
 
 # ── Actuator ────────────────────────────────────────────────────────────────
 management:

@@ -8,6 +8,7 @@ import com.ces.service.module.role.dto.PermissionResponse;
 import com.ces.service.module.role.dto.RoleRequest;
 import com.ces.service.module.role.dto.RoleResponse;
 import com.ces.service.module.role.service.RoleService;
+import com.ces.service.module.user.dto.UserResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -96,6 +97,12 @@ public class RoleController {
     public ResponseEntity<ApiResponse<RoleResponse>> removePermission(
             @PathVariable UUID id, @PathVariable UUID permissionId) {
         return ResponseEntity.ok(ApiResponse.ok(roleService.removePermission(id, permissionId)));
+    }
+
+    @GetMapping("/roles/{id}/users")
+    @PreAuthorize("hasAuthority('ROLE_READ')")
+    public ResponseEntity<ApiResponse<List<UserResponse>>> roleUsers(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(roleService.getRoleUsers(id)));
     }
 
     @GetMapping("/permissions")

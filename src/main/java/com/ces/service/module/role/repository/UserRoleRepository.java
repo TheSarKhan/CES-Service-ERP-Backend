@@ -42,6 +42,15 @@ public interface UserRoleRepository extends JpaRepository<UserRole, UserRoleId> 
     @Query("select ur from UserRole ur where ur.id.roleId = :roleId")
     List<UserRole> findByRoleId(@Param("roleId") UUID roleId);
 
+    @Query(
+            """
+            select ur from UserRole ur
+            join fetch ur.user u
+            where ur.id.roleId = :roleId and u.deletedAt is null
+            order by u.fullName asc
+            """)
+    List<UserRole> findByRoleIdWithUser(@Param("roleId") UUID roleId);
+
     @Query("select count(ur) > 0 from UserRole ur where ur.id.roleId = :roleId")
     boolean existsByRoleId(@Param("roleId") UUID roleId);
 
