@@ -52,3 +52,6 @@ Thumbs.db
 # ── Logs ───────────────────────────────────────────────────────────────────
 *.log
 logs/
+
+# ── Local uploads (dev default storage dir; see ces.uploads.dir) ───────────
+/uploads/

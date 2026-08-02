@@ -58,8 +58,9 @@ public class AuditLog {
     @Column(name = "user_full_name", length = 255)
     private String userFullName;
 
-    /** INET column; stored as text. */
-    @Column(name = "ip_address", columnDefinition = "inet")
+    /** Plain string (V28 — was INET; nothing used the native type, and binding it required
+     * fighting Hibernate/PgJDBC type coercion for no benefit). */
+    @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
     @Column(name = "user_agent", columnDefinition = "text")

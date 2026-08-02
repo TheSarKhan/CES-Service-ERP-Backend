@@ -82,6 +82,11 @@ ces:
     system-user-id: 00000000-0000-0000-0000-000000000000
   cors:
     allowed-origins: ${CES_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,https://service.ces.az}
+  uploads:
+    # Local-disk storage for inventory dynamic-field images. Must point to a path that
+    # survives deploys (not wiped by deploy.sh / container rebuilds) in production.
+    dir: ${CES_UPLOADS_DIR:./uploads}
+    url-prefix: /uploads
 
 # ── Actuator ────────────────────────────────────────────────────────────────
 management:

@@ -30,6 +30,11 @@ public enum ErrorCode {
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "This email already exists"),
     DUPLICATE_ROLE_CODE(HttpStatus.CONFLICT, "This role code already exists"),
     DUPLICATE_CHASSIS_NUMBER(HttpStatus.CONFLICT, "This chassis number already exists"),
+    DUPLICATE_NODE_NAME(HttpStatus.CONFLICT, "A node with this name already exists under the same parent"),
+    DUPLICATE_SKU(HttpStatus.CONFLICT, "This SKU already exists"),
+    DUPLICATE_SERIAL_NUMBER(HttpStatus.CONFLICT, "This serial number already exists"),
+    DUPLICATE_CATEGORY_NAME(HttpStatus.CONFLICT, "A category with this name already exists"),
+    DUPLICATE_FIELD_KEY(HttpStatus.CONFLICT, "A field with this key already exists on this category"),
 
     // ── Business-rule violations (422) ──────────────────────────────────────
     WEAK_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Password does not meet the security policy"),
@@ -53,6 +58,16 @@ public enum ErrorCode {
     CANNOT_DEACTIVATE_SELF(HttpStatus.UNPROCESSABLE_ENTITY, "A user cannot deactivate their own account"),
     USER_HAS_ACTIVE_WO(HttpStatus.UNPROCESSABLE_ENTITY, "User has active work orders assigned"),
     ARCHIVE_IMMUTABLE(HttpStatus.UNPROCESSABLE_ENTITY, "Archived records are immutable"),
+    NODE_NOT_EMPTY(HttpStatus.UNPROCESSABLE_ENTITY, "Node has child nodes or items and cannot be removed"),
+    NODE_INVALID_PARENT(HttpStatus.UNPROCESSABLE_ENTITY, "A node cannot become a descendant of itself"),
+    NODE_NOT_LEAF(HttpStatus.UNPROCESSABLE_ENTITY, "Items can only be placed on a leaf node"),
+    NODE_HAS_ITEMS(HttpStatus.UNPROCESSABLE_ENTITY, "A node with items cannot have child nodes"),
+    ITEM_HAS_STOCK(HttpStatus.UNPROCESSABLE_ENTITY, "Item still has stock and cannot be removed"),
+    ITEM_IS_SERIALIZED(HttpStatus.UNPROCESSABLE_ENTITY, "This item is serialized; use unit-level operations instead"),
+    ITEM_NOT_SERIALIZED(HttpStatus.UNPROCESSABLE_ENTITY, "This item is not serialized; use quantity-level stock operations instead"),
+    NODE_CATEGORY_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_ENTITY, "This category is not among the categories allowed at this node"),
+    INVALID_FILE_TYPE(HttpStatus.UNPROCESSABLE_ENTITY, "Only JPEG, PNG, WEBP and GIF images are allowed"),
+    FILE_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY, "File exceeds the maximum allowed size"),
 
     // ── Rate limiting (429) ─────────────────────────────────────────────────
     RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests — please wait"),
