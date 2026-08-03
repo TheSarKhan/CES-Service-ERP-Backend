@@ -8,7 +8,6 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
@@ -46,13 +45,17 @@ public class UserRole {
     @EmbeddedId
     private UserRoleId id;
 
+    /**
+     * Read-only navigation; the FK value lives in {@link #id}. Not {@code @MapsId} — that makes
+     * Hibernate derive the id from this association, so saving an assignment built from plain ids
+     * (how roles are granted) fails with "assign id from null one-to-one property".
+     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("userId")
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;
 
+    /** Read-only navigation — see {@link #user}. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("roleId")
     @JoinColumn(name = "role_id", insertable = false, updatable = false)
     private Role role;
 
