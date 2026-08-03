@@ -171,7 +171,8 @@ public class AuthService {
                 activeBranch,
                 branches,
                 roles,
-                permissions
+                permissions,
+                user.mustChangePassword()
         );
     }
 

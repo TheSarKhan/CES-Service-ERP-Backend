@@ -62,6 +62,8 @@ public interface AuthUserGateway {
             String passwordHash,
             boolean active,
             Instant lockedUntil,
+            /** Account still holds an admin-issued temporary password. */
+            boolean mustChangePassword,
             List<BranchMembership> branches
     ) {
     }

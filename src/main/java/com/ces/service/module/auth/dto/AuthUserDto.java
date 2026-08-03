@@ -17,7 +17,9 @@ public record AuthUserDto(
         @JsonProperty("branch_id") UUID branchId,
         List<BranchSummary> branches,
         List<String> roles,
-        List<String> permissions
+        List<String> permissions,
+        /** True while the account still holds an admin-issued temporary password. */
+        @JsonProperty("must_change_password") Boolean mustChangePassword
 ) {
 
     /**

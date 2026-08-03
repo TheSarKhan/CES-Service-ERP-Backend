@@ -106,6 +106,7 @@ public class RbacAuthUserGateway implements AuthUserGateway {
                 user.getPasswordHash(),
                 user.isActive(),
                 user.getLockedUntil(),
+                Boolean.TRUE.equals(user.getMustChangePassword()),
                 branches
         );
     }

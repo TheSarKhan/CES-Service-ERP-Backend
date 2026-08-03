@@ -51,6 +51,14 @@ public class User extends BaseEntity {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
+    /**
+     * Set when an admin creates the account or resets its password: the stored hash is a
+     * system-generated temporary, so the user is sent to change it before doing anything else.
+     */
+    @Column(name = "must_change_password", nullable = false)
+    @Builder.Default
+    private Boolean mustChangePassword = false;
+
     @Column(name = "phone", length = 50)
     private String phone;
 

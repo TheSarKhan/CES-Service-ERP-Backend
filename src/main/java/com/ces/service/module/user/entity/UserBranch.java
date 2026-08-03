@@ -7,7 +7,6 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
@@ -40,8 +39,13 @@ public class UserBranch {
     @EmbeddedId
     private UserBranchId id;
 
+    /**
+     * Read-only navigation only — the FK value lives in {@link #id}. It must NOT be {@code @MapsId}:
+     * that makes Hibernate derive the id from this association, so saving a membership built from
+     * plain ids (the normal path when creating a user) fails with "assign id from null one-to-one
+     * property".
+     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("userId")
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;
 

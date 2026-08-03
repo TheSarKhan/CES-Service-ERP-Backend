@@ -3,6 +3,9 @@ package com.ces.service.module.user.controller;
 import com.ces.service.common.dto.ApiResponse;
 import com.ces.service.common.dto.PageResponse;
 import com.ces.service.module.user.dto.AssignRoleRequest;
+import com.ces.service.module.user.dto.ChangeOwnPasswordRequest;
+import com.ces.service.module.user.dto.CreatedUserResponse;
+import com.ces.service.module.user.dto.OwnProfileRequest;
 import com.ces.service.module.user.dto.ResetPasswordRequest;
 import com.ces.service.module.user.dto.UserActivityResponse;
 import com.ces.service.module.user.dto.UserDetailResponse;
@@ -61,7 +64,7 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('USER_CREATE')")
-    public ResponseEntity<ApiResponse<UserResponse>> create(@Valid @RequestBody UserRequest request) {
+    public ResponseEntity<ApiResponse<CreatedUserResponse>> create(@Valid @RequestBody UserRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(userService.create(request)));
     }
 
@@ -125,9 +128,31 @@ public class UserController {
 
     @PatchMapping("/{id}/reset-password")
     @PreAuthorize("hasAuthority('USER_UPDATE')")
-    public ResponseEntity<Void> resetPassword(
-            @PathVariable UUID id, @Valid @RequestBody ResetPasswordRequest request) {
-        userService.resetPassword(id, request);
+    public ResponseEntity<ApiResponse<CreatedUserResponse>> resetPassword(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) ResetPasswordRequest request) {
+        // No body at all is the common case: "just give them a new temporary password".
+        return ResponseEntity.ok(ApiResponse.ok(
+                userService.resetPassword(id, request == null ? new ResetPasswordRequest() : request)));
+    }
+
+    // ── self-service: no USER_* permission, every signed-in user owns these ──
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserDetailResponse>> me() {
+        return ResponseEntity.ok(ApiResponse.ok(userService.getOwnProfile()));
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> updateMe(
+            @Valid @RequestBody OwnProfileRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(userService.updateOwnProfile(request)));
+    }
+
+    @PostMapping("/me/change-password")
+    public ResponseEntity<Void> changeOwnPassword(
+            @Valid @RequestBody ChangeOwnPasswordRequest request) {
+        userService.changeOwnPassword(request);
         return ResponseEntity.noContent().build();
     }
 

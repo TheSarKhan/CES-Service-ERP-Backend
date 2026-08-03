@@ -33,8 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Business rules enforced:
  * <ul>
- *   <li>RBAC-V01 — system roles ({@code is_system=true}) cannot be modified destructively / deleted
- *       ({@link ErrorCode#SYSTEM_ROLE_PROTECTED}).</li>
+ *   <li>{@code is_system=true} marks the roles seeded at install time. It is descriptive only —
+ *       they can be renamed, re-permissioned and deleted like any other role, because a customer
+ *       whose org chart doesn't match the seed must be able to reshape it. The one guard left is
+ *       RBAC-V03 below; deleting the last administrator role is possible and deliberate.</li>
  *   <li>RBAC-V02 — role {@code code} unique within branch ({@link ErrorCode#DUPLICATE_ROLE_CODE}).</li>
  *   <li>RBAC-V03 — a role with active users cannot be deleted
  *       ({@link ErrorCode#ROLE_HAS_ACTIVE_USERS}).</li>
@@ -108,11 +110,6 @@ public class RoleService {
     public RoleResponse update(UUID id, RoleRequest request) {
         Role role = loadWithPermissions(id);
 
-        // RBAC-V01: system roles are protected from edits.
-        if (Boolean.TRUE.equals(role.getIsSystem())) {
-            throw new BusinessException(ErrorCode.SYSTEM_ROLE_PROTECTED);
-        }
-
         // RBAC-V02: code unique within branch (only when changed).
         if (!role.getCode().equals(request.getCode())
                 && roleRepository.existsByBranchIdAndCodeAndDeletedAtIsNull(
@@ -132,12 +129,8 @@ public class RoleService {
     public void delete(UUID id) {
         Role role = loadRole(id);
 
-        // RBAC-V01: system roles cannot be deleted.
-        if (Boolean.TRUE.equals(role.getIsSystem())) {
-            throw new BusinessException(ErrorCode.SYSTEM_ROLE_PROTECTED);
-        }
-
-        // RBAC-V03: role with active users cannot be deleted.
+        // RBAC-V03: a role still assigned to someone can't be deleted — that would orphan the
+        // assignment rather than express an intent. Unassign first.
         if (userRoleRepository.existsByRoleId(role.getId())) {
             throw new BusinessException(ErrorCode.ROLE_HAS_ACTIVE_USERS);
         }
@@ -149,9 +142,6 @@ public class RoleService {
     /** Adds permissions to a role; idempotent for already-present permissions (RBAC-V04 auditable). */
     public RoleResponse addPermissions(UUID id, AssignPermissionsRequest request) {
         Role role = loadWithPermissions(id);
-        if (Boolean.TRUE.equals(role.getIsSystem())) {
-            throw new BusinessException(ErrorCode.SYSTEM_ROLE_PROTECTED);
-        }
         List<Permission> permissions = resolvePermissions(request.getPermissionIds());
         permissions.forEach(role::addPermission);
         return RoleResponse.from(role, true);
@@ -159,9 +149,6 @@ public class RoleService {
 
     public RoleResponse removePermission(UUID id, UUID permissionId) {
         Role role = loadWithPermissions(id);
-        if (Boolean.TRUE.equals(role.getIsSystem())) {
-            throw new BusinessException(ErrorCode.SYSTEM_ROLE_PROTECTED);
-        }
         role.getPermissions().removeIf(p -> p.getId().equals(permissionId));
         return RoleResponse.from(role, true);
     }

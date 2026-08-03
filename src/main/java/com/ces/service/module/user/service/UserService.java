@@ -11,6 +11,10 @@ import com.ces.service.module.role.entity.UserRoleId;
 import com.ces.service.module.role.repository.RoleRepository;
 import com.ces.service.module.role.repository.UserRoleRepository;
 import com.ces.service.module.user.dto.AssignRoleRequest;
+import com.ces.service.common.security.SecurityUtils;
+import com.ces.service.module.user.dto.ChangeOwnPasswordRequest;
+import com.ces.service.module.user.dto.CreatedUserResponse;
+import com.ces.service.module.user.dto.OwnProfileRequest;
 import com.ces.service.module.user.dto.ResetPasswordRequest;
 import com.ces.service.module.user.dto.UserActivityResponse;
 import com.ces.service.module.user.dto.UserDetailResponse;
@@ -25,6 +29,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.security.SecureRandom;
 import java.util.regex.Pattern;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -51,6 +56,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[A-Z])(?=.*\\d).{8,}$");
+
+    /** Ambiguous glyphs (O/0, I/l/1) are left out — these get read aloud and typed by hand. */
+    private static final String TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    private static final int TEMP_PASSWORD_LENGTH = 12;
+    private static final SecureRandom RANDOM = new SecureRandom();
     private static final String ADMIN_ROLE_CODE = "ADMIN";
 
     private final UserRepository userRepository;
@@ -87,20 +97,26 @@ public class UserService {
         return toDetail(user);
     }
 
-    public UserResponse create(UserRequest request) {
+    public CreatedUserResponse create(UserRequest request) {
         UUID branchId = BranchContext.get();
 
         // USR-V01: email unique system-wide.
         if (userRepository.existsByEmailAndDeletedAtIsNull(request.getEmail())) {
             throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
         }
+        // The admin may set a password explicitly, but the normal path is a generated temporary
+        // one the user must replace on first login — so it never travels through a second person's
+        // memory or a chat message any longer than necessary.
+        boolean generated = request.getPassword() == null || request.getPassword().isBlank();
+        String initialPassword = generated ? generateTemporaryPassword() : request.getPassword();
         // USR-V02: password strength.
-        validatePassword(request.getPassword());
+        validatePassword(initialPassword);
 
         User user = User.builder()
                 .fullName(request.getFullName())
                 .email(request.getEmail())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .passwordHash(passwordEncoder.encode(initialPassword))
+                .mustChangePassword(true)
                 .phone(request.getPhone())
                 .position(request.getPosition())
                 .isActive(request.getIsActive() == null ? Boolean.TRUE : request.getIsActive())
@@ -119,7 +135,7 @@ public class UserService {
                 assignRoleInternal(user.getId(), ra.getRoleId(), ra.getBranchId());
             }
         }
-        return UserResponse.from(user);
+        return CreatedUserResponse.of(UserResponse.from(user), generated ? initialPassword : null);
     }
 
     public UserResponse update(UUID id, UserRequest request) {
@@ -184,13 +200,71 @@ public class UserService {
         userRepository.save(user);
     }
 
-    public void resetPassword(UUID id, ResetPasswordRequest request) {
+    /** Admin-driven reset. The result is always temporary — the user replaces it on next login. */
+    public CreatedUserResponse resetPassword(UUID id, ResetPasswordRequest request) {
         User user = loadUser(id);
-        validatePassword(request.getNewPassword());
-        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        boolean generated = request.getNewPassword() == null || request.getNewPassword().isBlank();
+        String newPassword = generated ? generateTemporaryPassword() : request.getNewPassword();
+        validatePassword(newPassword);
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(true);
         user.setFailedAttempts(0);
         user.setLockedUntil(null);
         userRepository.save(user);
+        return CreatedUserResponse.of(UserResponse.from(user), generated ? newPassword : null);
+    }
+
+    // ── self-service ─────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public UserDetailResponse getOwnProfile() {
+        return toDetail(loadCurrentUser());
+    }
+
+    /** Name / phone / position only — see {@link OwnProfileRequest} for why nothing else. */
+    public UserResponse updateOwnProfile(OwnProfileRequest request) {
+        User user = loadCurrentUser();
+        user.setFullName(request.getFullName());
+        user.setPhone(request.getPhone());
+        user.setPosition(request.getPosition());
+        return UserResponse.from(userRepository.save(user));
+    }
+
+    /** Replaces the caller's own password and clears the forced-change flag. */
+    public void changeOwnPassword(ChangeOwnPasswordRequest request) {
+        User user = loadCurrentUser();
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+        validatePassword(request.getNewPassword());
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setMustChangePassword(false);
+        userRepository.save(user);
+    }
+
+    private User loadCurrentUser() {
+        UUID userId = SecurityUtils.getCurrentUserId()
+                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+        return userRepository
+                .findById(userId)
+                .filter(u -> u.getDeletedAt() == null)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+    }
+
+    /**
+     * Readable one-off password. Not meant to be kept — the account is flagged so it has to be
+     * replaced at next login.
+     */
+    private String generateTemporaryPassword() {
+        StringBuilder sb = new StringBuilder(TEMP_PASSWORD_LENGTH);
+        for (int i = 0; i < TEMP_PASSWORD_LENGTH; i++) {
+            sb.append(TEMP_PASSWORD_ALPHABET.charAt(RANDOM.nextInt(TEMP_PASSWORD_ALPHABET.length())));
+        }
+        // Guarantee the policy (an uppercase letter and a digit) rather than hoping randomness hits it.
+        sb.setCharAt(0, "ABCDEFGHJKMNPQRSTUVWXYZ".charAt(RANDOM.nextInt(23)));
+        sb.setCharAt(1, "23456789".charAt(RANDOM.nextInt(8)));
+        return sb.toString();
     }
 
     public void assignRole(UUID id, AssignRoleRequest request) {
