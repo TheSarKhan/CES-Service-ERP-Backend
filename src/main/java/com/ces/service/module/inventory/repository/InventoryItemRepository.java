@@ -1,6 +1,7 @@
 package com.ces.service.module.inventory.repository;
 
 import com.ces.service.module.inventory.entity.InventoryItem;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -28,25 +29,53 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
     Optional<InventoryItem> findByBranchIdAndBarcodeAndDeletedAtIsNull(UUID branchId, String barcode);
 
     /**
-     * Filtered + searchable listing. Any of the filter params may be null (ignored when null).
-     * {@code searchPattern} matches name / SKU / barcode (case-insensitive) — callers must
-     * pre-build it as {@code "%" + search.toLowerCase() + "%"} (or pass null). Building the
-     * wildcard pattern in Java rather than via SQL {@code concat()} avoids a PgJDBC quirk where
-     * {@code '%' || <untyped null param> || '%'} resolves to {@code bytea}, breaking the
-     * subsequent {@code lower(...)} call ("function lower(bytea) does not exist").
+     * Distinct category ids actually present at a node — lets the frontend know which category
+     * sections to render for an unrestricted node (no {@code categoryIds} allow-list) once each
+     * section fetches its own paginated item page instead of one bulk fetch to group client-side.
      */
     @Query(
-            """
-            select i from InventoryItem i
-            where i.branchId = :branchId
-              and i.deletedAt is null
-              and (:categoryId is null or i.categoryId = :categoryId)
-              and (:nodeId is null or i.nodeId = :nodeId)
+            "select distinct i.categoryId from InventoryItem i "
+                    + "where i.branchId = :branchId and i.nodeId = :nodeId and i.deletedAt is null")
+    List<UUID> findDistinctCategoryIdsByNodeId(@Param("branchId") UUID branchId, @Param("nodeId") UUID nodeId);
+
+    /**
+     * Filtered + searchable listing. Any of the filter params may be null (ignored when null).
+     * {@code searchPattern} matches name / SKU / barcode / any dynamic-field value (case-
+     * insensitive) — callers must pre-build it as {@code "%" + search.toLowerCase() + "%"} (or
+     * pass null). Building the wildcard pattern in Java rather than via SQL {@code concat()}
+     * avoids a PgJDBC quirk where {@code '%' || <untyped null param> || '%'} resolves to
+     * {@code bytea}, breaking the subsequent {@code lower(...)} call.
+     *
+     * <p>Native (not JPQL) so {@code attributes} — JSONB, mapped as a raw string — can be cast to
+     * text and searched directly; this is what powers the "hər cür dəyərlə tapaq" global product
+     * search (categoryId and nodeId both null) as well as the per-node/category listings.
+     */
+    @Query(
+            value = """
+            select * from ces_service.inventory_items i
+            where i.branch_id = :branchId
+              and i.deleted_at is null
+              and (:categoryId is null or i.category_id = :categoryId)
+              and (:nodeId is null or i.node_id = :nodeId)
               and (:searchPattern is null
-                   or lower(i.name) like :searchPattern
-                   or lower(i.sku) like :searchPattern
-                   or lower(i.barcode) like :searchPattern)
-            """)
+                   or i.name ilike :searchPattern
+                   or i.sku ilike :searchPattern
+                   or i.barcode ilike :searchPattern
+                   or i.attributes::text ilike :searchPattern)
+            """,
+            countQuery = """
+            select count(*) from ces_service.inventory_items i
+            where i.branch_id = :branchId
+              and i.deleted_at is null
+              and (:categoryId is null or i.category_id = :categoryId)
+              and (:nodeId is null or i.node_id = :nodeId)
+              and (:searchPattern is null
+                   or i.name ilike :searchPattern
+                   or i.sku ilike :searchPattern
+                   or i.barcode ilike :searchPattern
+                   or i.attributes::text ilike :searchPattern)
+            """,
+            nativeQuery = true)
     Page<InventoryItem> search(
             @Param("branchId") UUID branchId,
             @Param("categoryId") UUID categoryId,

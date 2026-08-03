@@ -81,6 +81,11 @@ public class InventoryCategoryField {
     @Builder.Default
     private Boolean showInTable = false;
 
+    /** Auto-seeded on category creation (Şəkil/Açıqlama/İstehsalçı/Vəziyyət) — cannot be deleted. */
+    @Column(name = "is_system", nullable = false)
+    @Builder.Default
+    private Boolean isSystem = false;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt;

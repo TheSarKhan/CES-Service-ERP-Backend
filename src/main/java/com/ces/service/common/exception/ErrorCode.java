@@ -60,12 +60,11 @@ public enum ErrorCode {
     ARCHIVE_IMMUTABLE(HttpStatus.UNPROCESSABLE_ENTITY, "Archived records are immutable"),
     NODE_NOT_EMPTY(HttpStatus.UNPROCESSABLE_ENTITY, "Node has child nodes or items and cannot be removed"),
     NODE_INVALID_PARENT(HttpStatus.UNPROCESSABLE_ENTITY, "A node cannot become a descendant of itself"),
-    NODE_NOT_LEAF(HttpStatus.UNPROCESSABLE_ENTITY, "Items can only be placed on a leaf node"),
-    NODE_HAS_ITEMS(HttpStatus.UNPROCESSABLE_ENTITY, "A node with items cannot have child nodes"),
     ITEM_HAS_STOCK(HttpStatus.UNPROCESSABLE_ENTITY, "Item still has stock and cannot be removed"),
     ITEM_IS_SERIALIZED(HttpStatus.UNPROCESSABLE_ENTITY, "This item is serialized; use unit-level operations instead"),
     ITEM_NOT_SERIALIZED(HttpStatus.UNPROCESSABLE_ENTITY, "This item is not serialized; use quantity-level stock operations instead"),
     NODE_CATEGORY_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_ENTITY, "This category is not among the categories allowed at this node"),
+    SYSTEM_FIELD_PROTECTED(HttpStatus.UNPROCESSABLE_ENTITY, "System fields are auto-created for every category and cannot be removed"),
     INVALID_FILE_TYPE(HttpStatus.UNPROCESSABLE_ENTITY, "Only JPEG, PNG, WEBP and GIF images are allowed"),
     FILE_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY, "File exceeds the maximum allowed size"),
 

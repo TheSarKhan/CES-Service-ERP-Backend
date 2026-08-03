@@ -13,6 +13,7 @@ import com.ces.service.module.inventory.repository.InventoryItemRepository;
 import com.ces.service.module.inventory.repository.InventoryNodeRepository;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -25,13 +26,13 @@ import org.springframework.transaction.annotation.Transactional;
  * Dynamic physical storage tree (Layer) management.
  *
  * <p>Adjacency list only (parent_id), unbounded depth — mirrors the Folder-tree pattern from the
- * reference Arxiv project. Business rules:
+ * reference Arxiv project. A node may hold items directly and have child nodes at the same time
+ * (e.g. a shelf with loose products on it and boxes on top of it). Business rules:
  * <ul>
  *   <li>Sibling names must be unique under the same parent → {@link ErrorCode#DUPLICATE_NODE_NAME}.</li>
  *   <li>A node cannot be moved under itself or one of its own descendants →
  *       {@link ErrorCode#NODE_INVALID_PARENT}.</li>
- *   <li>A node with children (or items — wired once the Item module exists) cannot be deleted →
- *       {@link ErrorCode#NODE_NOT_EMPTY}.</li>
+ *   <li>A node with children or items cannot be deleted → {@link ErrorCode#NODE_NOT_EMPTY}.</li>
  * </ul>
  */
 @Service
@@ -69,14 +70,30 @@ public class InventoryNodeService {
         return InventoryNodeResponse.from(node, hasChildren);
     }
 
+    /** Root-first ancestor chain (including {@code id} itself) — lets a client rebuild a breadcrumb. */
+    @Transactional(readOnly = true)
+    public List<InventoryNodeResponse> getPath(UUID id) {
+        List<InventoryNode> chain = new ArrayList<>();
+        UUID currentId = id;
+        int guard = 0;
+        while (currentId != null && guard++ < 1000) {
+            InventoryNode node = loadNode(currentId);
+            chain.add(node);
+            currentId = node.getParentId();
+        }
+        Collections.reverse(chain);
+        List<UUID> ids = chain.stream().map(InventoryNode::getId).collect(Collectors.toList());
+        Set<UUID> withChildren = Set.copyOf(nodeRepository.findIdsWithChildren(ids));
+        return chain.stream()
+                .map(n -> InventoryNodeResponse.from(n, withChildren.contains(n.getId())))
+                .collect(Collectors.toList());
+    }
+
     public InventoryNodeResponse create(InventoryNodeRequest request) {
         UUID branchId = BranchContext.get();
 
         if (request.getParentId() != null) {
             loadNode(request.getParentId()); // ensures parent exists in this branch
-            if (itemRepository.existsByNodeIdAndDeletedAtIsNull(request.getParentId())) {
-                throw new BusinessException(ErrorCode.NODE_HAS_ITEMS);
-            }
         }
 
         if (nodeRepository.existsByBranchIdAndParentIdAndNameAndDeletedAtIsNull(
@@ -115,9 +132,6 @@ public class InventoryNodeService {
                     throw new BusinessException(ErrorCode.NODE_INVALID_PARENT);
                 }
                 loadNode(newParentId);
-                if (itemRepository.existsByNodeIdAndDeletedAtIsNull(newParentId)) {
-                    throw new BusinessException(ErrorCode.NODE_HAS_ITEMS);
-                }
             }
         }
 

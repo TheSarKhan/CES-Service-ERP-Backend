@@ -29,6 +29,7 @@ public class InventoryCategoryFieldResponse {
     private Integer sortOrder;
     private Boolean isVisible;
     private Boolean showInTable;
+    private Boolean isSystem;
 
     public static InventoryCategoryFieldResponse from(InventoryCategoryField field) {
         return InventoryCategoryFieldResponse.builder()
@@ -44,6 +45,7 @@ public class InventoryCategoryFieldResponse {
                 .sortOrder(field.getSortOrder())
                 .isVisible(field.getIsVisible())
                 .showInTable(field.getShowInTable())
+                .isSystem(field.getIsSystem())
                 .build();
     }
 }

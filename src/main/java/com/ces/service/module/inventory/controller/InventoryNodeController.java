@@ -45,6 +45,13 @@ public class InventoryNodeController {
         return ResponseEntity.ok(ApiResponse.ok(nodeService.get(id)));
     }
 
+    /** Ancestor chain from the root down to (and including) this node — powers "jump to location". */
+    @GetMapping("/{id}/path")
+    @PreAuthorize("hasAuthority('WH_READ')")
+    public ResponseEntity<ApiResponse<List<InventoryNodeResponse>>> getPath(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(nodeService.getPath(id)));
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('WH_MANAGE')")
     public ResponseEntity<ApiResponse<InventoryNodeResponse>> create(

@@ -10,6 +10,7 @@ import com.ces.service.module.inventory.dto.InventoryCategoryRequest;
 import com.ces.service.module.inventory.dto.InventoryCategoryResponse;
 import com.ces.service.module.inventory.entity.InventoryCategory;
 import com.ces.service.module.inventory.entity.InventoryCategoryField;
+import com.ces.service.module.inventory.enums.InventoryFieldType;
 import com.ces.service.module.inventory.repository.InventoryCategoryFieldRepository;
 import com.ces.service.module.inventory.repository.InventoryCategoryRepository;
 import com.ces.service.module.inventory.repository.InventoryItemRepository;
@@ -37,6 +38,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class InventoryCategoryService {
+
+    /** Auto-seeded on every new category — a baseline that fits any item, from a nail to an engine. */
+    private static final List<SystemFieldDef> SYSTEM_FIELDS = List.of(
+            new SystemFieldDef("sekil", "Şəkil", InventoryFieldType.IMAGE, true),
+            new SystemFieldDef("aciqlama", "Açıqlama", InventoryFieldType.TEXTAREA, false),
+            new SystemFieldDef("istehsalci", "İstehsalçı / Təchizatçı", InventoryFieldType.TEXT, false),
+            new SystemFieldDef("veziyyet", "Vəziyyət", InventoryFieldType.TEXT, false));
+
+    private record SystemFieldDef(String fieldKey, String label, InventoryFieldType fieldType, boolean showInTable) {
+    }
 
     private final InventoryCategoryRepository categoryRepository;
     private final InventoryCategoryFieldRepository fieldRepository;
@@ -89,7 +100,7 @@ public class InventoryCategoryService {
         category.setBranchId(branchId);
         InventoryCategory saved = categoryRepository.save(category);
 
-        List<InventoryCategoryFieldResponse> fields = new ArrayList<>();
+        List<InventoryCategoryFieldResponse> fields = new ArrayList<>(seedSystemFields(saved.getId()));
         if (request.getFields() != null) {
             for (InventoryCategoryFieldRequest fieldRequest : request.getFields()) {
                 fields.add(saveField(saved.getId(), fieldRequest));
@@ -159,10 +170,32 @@ public class InventoryCategoryService {
         InventoryCategoryField field = fieldRepository
                 .findByIdAndCategoryId(fieldId, categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category field not found: " + fieldId));
+        if (Boolean.TRUE.equals(field.getIsSystem())) {
+            throw new BusinessException(ErrorCode.SYSTEM_FIELD_PROTECTED);
+        }
         fieldRepository.delete(field);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
+
+    private List<InventoryCategoryFieldResponse> seedSystemFields(UUID categoryId) {
+        List<InventoryCategoryFieldResponse> seeded = new ArrayList<>();
+        int sortOrder = 0;
+        for (SystemFieldDef def : SYSTEM_FIELDS) {
+            InventoryCategoryField field = new InventoryCategoryField();
+            field.setCategoryId(categoryId);
+            field.setFieldKey(def.fieldKey());
+            field.setLabel(def.label());
+            field.setFieldType(def.fieldType());
+            field.setIsRequired(false);
+            field.setSortOrder(sortOrder++);
+            field.setIsVisible(true);
+            field.setShowInTable(def.showInTable());
+            field.setIsSystem(true);
+            seeded.add(InventoryCategoryFieldResponse.from(fieldRepository.save(field)));
+        }
+        return seeded;
+    }
 
     private InventoryCategoryFieldResponse saveField(UUID categoryId, InventoryCategoryFieldRequest request) {
         if (fieldRepository.existsByCategoryIdAndFieldKey(categoryId, request.getFieldKey())) {

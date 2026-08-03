@@ -15,6 +15,7 @@ import com.ces.service.module.inventory.repository.InventoryNodeRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -29,7 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Business rules:
  * <ul>
  *   <li>SKU unique within branch → {@link ErrorCode#DUPLICATE_SKU}.</li>
- *   <li>Items may only be placed on a leaf node (no children) → {@link ErrorCode#NODE_NOT_LEAF}.</li>
+ *   <li>A node may hold items directly and have child nodes at the same time — a shelf can carry
+ *       loose products and boxes side by side.</li>
  *   <li>Non-serialized items track stock via the {@code quantity} column directly; serialized
  *       items must go through {@code InventoryItemUnitService} instead →
  *       {@link ErrorCode#ITEM_IS_SERIALIZED}.</li>
@@ -70,11 +72,17 @@ public class InventoryItemService {
         return InventoryItemResponse.from(loadItem(id));
     }
 
+    /** See {@link InventoryItemRepository#findDistinctCategoryIdsByNodeId} javadoc. */
+    @Transactional(readOnly = true)
+    public List<UUID> listCategoryIdsAtNode(UUID nodeId) {
+        UUID branchId = BranchContext.get();
+        return itemRepository.findDistinctCategoryIdsByNodeId(branchId, nodeId);
+    }
+
     public InventoryItemResponse create(InventoryItemRequest request) {
         UUID branchId = BranchContext.get();
 
         InventoryNode node = loadNode(request.getNodeId(), branchId);
-        assertIsLeaf(node.getId());
         loadCategory(request.getCategoryId(), branchId);
         assertCategoryAllowed(node, request.getCategoryId());
 
@@ -151,7 +159,6 @@ public class InventoryItemService {
         InventoryItem item = loadItem(id);
         UUID oldNodeId = item.getNodeId();
         InventoryNode newNode = loadNode(newNodeId, item.getBranchId());
-        assertIsLeaf(newNode.getId());
         assertCategoryAllowed(newNode, item.getCategoryId());
         item.setNodeId(newNode.getId());
         auditLogger.log(
@@ -210,12 +217,6 @@ public class InventoryItemService {
     private void requirePositive(BigDecimal value) {
         if (value == null || value.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
-        }
-    }
-
-    private void assertIsLeaf(UUID nodeId) {
-        if (nodeRepository.existsByParentIdAndDeletedAtIsNull(nodeId)) {
-            throw new BusinessException(ErrorCode.NODE_NOT_LEAF);
         }
     }
 

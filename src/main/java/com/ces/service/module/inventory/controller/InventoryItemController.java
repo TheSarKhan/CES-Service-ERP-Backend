@@ -8,6 +8,7 @@ import com.ces.service.module.inventory.dto.MoveItemRequest;
 import com.ces.service.module.inventory.dto.StockQuantityRequest;
 import com.ces.service.module.inventory.service.InventoryItemService;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -45,7 +46,9 @@ public class InventoryItemController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "createdAt") String sort,
+            // Repository.search() is a native query (needed to search inside the attributes
+            // JSONB column), so this must be an actual DB column name, not a Java property name.
+            @RequestParam(defaultValue = "created_at") String sort,
             @RequestParam(defaultValue = "desc") String dir) {
         Pageable pageable = toPageable(page, size, sort, dir);
         Page<InventoryItemResponse> result = itemService.list(categoryId, nodeId, search, pageable);
@@ -57,6 +60,13 @@ public class InventoryItemController {
     @PreAuthorize("hasAuthority('WH_READ')")
     public ResponseEntity<ApiResponse<InventoryItemResponse>> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(itemService.get(id)));
+    }
+
+    /** Distinct category ids present at a node — see {@code InventoryItemService.listCategoryIdsAtNode}. */
+    @GetMapping("/category-ids")
+    @PreAuthorize("hasAuthority('WH_READ')")
+    public ResponseEntity<ApiResponse<List<UUID>>> categoryIds(@RequestParam UUID nodeId) {
+        return ResponseEntity.ok(ApiResponse.ok(itemService.listCategoryIdsAtNode(nodeId)));
     }
 
     @PostMapping
