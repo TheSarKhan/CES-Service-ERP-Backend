@@ -1,6 +1,7 @@
 package com.ces.service.module.inventory.repository;
 
 import com.ces.service.module.inventory.entity.InventoryItem;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,27 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
     Optional<InventoryItem> findByBranchIdAndQrCodeAndDeletedAtIsNull(UUID branchId, String qrCode);
 
     Optional<InventoryItem> findByBranchIdAndBarcodeAndDeletedAtIsNull(UUID branchId, String barcode);
+
+    /**
+     * Non-serialized products whose warranty ends inside the given window. Serialized ones are
+     * excluded on purpose: their warranty lives on each unit, so counting the parent would double
+     * up with the unit-level query.
+     */
+    @Query("select count(i) from InventoryItem i "
+            + "where i.branchId = :branchId and i.deletedAt is null "
+            + "and i.isSerialized = false and i.warrantyEndDate is not null "
+            + "and i.warrantyEndDate between :from and :to")
+    long countItemsWithWarrantyEndBetween(
+            @Param("branchId") UUID branchId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    @Query("select count(i) from InventoryItem i "
+            + "where i.branchId = :branchId and i.deletedAt is null "
+            + "and i.isSerialized = false and i.warrantyEndDate is not null "
+            + "and i.warrantyEndDate < :today")
+    long countItemsWithWarrantyExpired(
+            @Param("branchId") UUID branchId, @Param("today") LocalDate today);
 
     /**
      * Distinct category ids actually present at a node — lets the frontend know which category

@@ -65,6 +65,9 @@ public enum ErrorCode {
     ITEM_NOT_SERIALIZED(HttpStatus.UNPROCESSABLE_ENTITY, "This item is not serialized; use quantity-level stock operations instead"),
     NODE_CATEGORY_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_ENTITY, "This category is not among the categories allowed at this node"),
     SYSTEM_FIELD_PROTECTED(HttpStatus.UNPROCESSABLE_ENTITY, "System fields are auto-created for every category and cannot be removed"),
+    ENTITY_PENDING_APPROVAL(HttpStatus.UNPROCESSABLE_ENTITY, "This record already has a change waiting for approval"),
+    APPROVAL_SELF_DECISION(HttpStatus.UNPROCESSABLE_ENTITY, "You cannot approve or reject your own request"),
+    APPROVAL_ALREADY_DECIDED(HttpStatus.UNPROCESSABLE_ENTITY, "This request has already been decided"),
     INVALID_FILE_TYPE(HttpStatus.UNPROCESSABLE_ENTITY, "Only JPEG, PNG, WEBP and GIF images are allowed"),
     FILE_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY, "File exceeds the maximum allowed size"),
 

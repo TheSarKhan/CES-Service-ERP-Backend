@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -73,6 +74,24 @@ public class InventoryItem extends BaseEntity {
     @Column(name = "attributes", nullable = false, columnDefinition = "jsonb")
     @Builder.Default
     private String attributes = "{}";
+
+    /**
+     * Warranty duration in months. For a serialized item this is the default applied to newly
+     * registered units; for a non-serialized one it's the length of {@code warrantyStartDate} →
+     * {@code warrantyEndDate}.
+     */
+    @Column(name = "warranty_months")
+    private Integer warrantyMonths;
+
+    @Column(name = "warranty_start_date")
+    private LocalDate warrantyStartDate;
+
+    /**
+     * Only meaningful for non-serialized items — a serialized item's real warranty lives on each
+     * {@link InventoryItemUnit}, so this stays null there to avoid two competing answers.
+     */
+    @Column(name = "warranty_end_date")
+    private LocalDate warrantyEndDate;
 
     @Column(name = "notes", columnDefinition = "text")
     private String notes;

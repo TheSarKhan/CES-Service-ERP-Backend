@@ -3,6 +3,7 @@ package com.ces.service.module.inventory.dto;
 import com.ces.service.module.inventory.entity.InventoryItemUnit;
 import com.ces.service.module.inventory.enums.InventoryUnitStatus;
 import com.ces.service.module.inventory.enums.WarrantyStatus;
+import com.ces.service.module.inventory.service.WarrantyClock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -19,8 +20,6 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class InventoryItemUnitResponse {
-
-    private static final int EXPIRING_SOON_DAYS = 30;
 
     private UUID id;
     private UUID branchId;
@@ -58,7 +57,7 @@ public class InventoryItemUnitResponse {
                 .purchaseDate(unit.getPurchaseDate())
                 .warrantyStartDate(unit.getWarrantyStartDate())
                 .warrantyEndDate(unit.getWarrantyEndDate())
-                .warrantyStatus(computeWarrantyStatus(unit.getWarrantyEndDate()))
+                .warrantyStatus(WarrantyClock.statusOf(unit.getWarrantyEndDate()))
                 .failedAt(unit.getFailedAt())
                 .failureNotes(unit.getFailureNotes())
                 .usedInWorkOrderId(unit.getUsedInWorkOrderId())
@@ -66,19 +65,5 @@ public class InventoryItemUnitResponse {
                 .createdAt(unit.getCreatedAt())
                 .updatedAt(unit.getUpdatedAt())
                 .build();
-    }
-
-    private static WarrantyStatus computeWarrantyStatus(LocalDate warrantyEndDate) {
-        if (warrantyEndDate == null) {
-            return WarrantyStatus.NONE;
-        }
-        LocalDate today = LocalDate.now();
-        if (warrantyEndDate.isBefore(today)) {
-            return WarrantyStatus.EXPIRED;
-        }
-        if (!warrantyEndDate.isAfter(today.plusDays(EXPIRING_SOON_DAYS))) {
-            return WarrantyStatus.EXPIRING_SOON;
-        }
-        return WarrantyStatus.ACTIVE;
     }
 }

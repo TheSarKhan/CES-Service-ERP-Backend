@@ -107,6 +107,11 @@ public class InventoryItemUnitService {
 
         LocalDate purchaseDate = request.getPurchaseDate() != null ? request.getPurchaseDate() : LocalDate.now();
         LocalDate warrantyStart = request.getWarrantyStartDate() != null ? request.getWarrantyStartDate() : purchaseDate;
+        // The item's warrantyMonths is a default for its units: registering a batch shouldn't
+        // require re-typing the same warranty length every time. An explicit end date still wins.
+        LocalDate warrantyEnd = request.getWarrantyEndDate() != null
+                ? request.getWarrantyEndDate()
+                : WarrantyClock.endDateFrom(warrantyStart, item.getWarrantyMonths());
 
         // Reject duplicates within the submitted batch itself, then against existing data.
         Set<String> seen = new HashSet<>();
@@ -130,7 +135,7 @@ public class InventoryItemUnitService {
                     .status(InventoryUnitStatus.IN_STOCK)
                     .purchaseDate(purchaseDate)
                     .warrantyStartDate(warrantyStart)
-                    .warrantyEndDate(request.getWarrantyEndDate())
+                    .warrantyEndDate(warrantyEnd)
                     .notes(request.getNotes())
                     .build();
             unit.setBranchId(branchId);

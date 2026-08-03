@@ -14,6 +14,7 @@ import com.ces.service.module.inventory.repository.InventoryItemRepository;
 import com.ces.service.module.inventory.repository.InventoryNodeRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -99,8 +100,11 @@ public class InventoryItemService {
                 .unit(request.getUnit())
                 .quantity(request.getQuantity())
                 .purchasePrice(request.getPurchasePrice())
-                .isSerialized(request.getIsSerialized() == null ? Boolean.FALSE : request.getIsSerialized())
+                .isSerialized(isSerializedRequest(request))
                 .attributes(toJson(request.getAttributes()))
+                .warrantyMonths(request.getWarrantyMonths())
+                .warrantyStartDate(request.getWarrantyStartDate())
+                .warrantyEndDate(resolveWarrantyEnd(request, isSerializedRequest(request)))
                 .notes(request.getNotes())
                 .isActive(request.getIsActive() == null ? Boolean.TRUE : request.getIsActive())
                 .build();
@@ -134,6 +138,9 @@ public class InventoryItemService {
         item.setUnit(request.getUnit());
         item.setPurchasePrice(request.getPurchasePrice());
         item.setAttributes(toJson(request.getAttributes()));
+        item.setWarrantyMonths(request.getWarrantyMonths());
+        item.setWarrantyStartDate(request.getWarrantyStartDate());
+        item.setWarrantyEndDate(resolveWarrantyEnd(request, item.getIsSerialized()));
         item.setNotes(request.getNotes());
         if (request.getIsActive() != null) {
             item.setIsActive(request.getIsActive());
@@ -205,6 +212,25 @@ public class InventoryItemService {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
+
+    private boolean isSerializedRequest(InventoryItemRequest request) {
+        return request.getIsSerialized() != null && request.getIsSerialized();
+    }
+
+    /**
+     * A serialized item keeps no end date of its own — its warranty is per unit, and storing a
+     * second answer here would let the two drift apart. For everything else the explicit end date
+     * wins, falling back to start + {@code warrantyMonths} so callers can give either.
+     */
+    private LocalDate resolveWarrantyEnd(InventoryItemRequest request, boolean serialized) {
+        if (serialized) {
+            return null;
+        }
+        if (request.getWarrantyEndDate() != null) {
+            return request.getWarrantyEndDate();
+        }
+        return WarrantyClock.endDateFrom(request.getWarrantyStartDate(), request.getWarrantyMonths());
+    }
 
     private InventoryItem loadNonSerializedItem(UUID id) {
         InventoryItem item = loadItem(id);

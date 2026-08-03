@@ -2,6 +2,7 @@ package com.ces.service.module.inventory.repository;
 
 import com.ces.service.module.inventory.entity.InventoryItemUnit;
 import com.ces.service.module.inventory.enums.InventoryUnitStatus;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,6 +29,26 @@ public interface InventoryItemUnitRepository extends JpaRepository<InventoryItem
     Optional<InventoryItemUnit> findByBranchIdAndBarcodeAndDeletedAtIsNull(UUID branchId, String barcode);
 
     Optional<InventoryItemUnit> findByBranchIdAndSerialNumberAndDeletedAtIsNull(UUID branchId, String serialNumber);
+
+    /**
+     * Warranty windows closing inside the given range. Disposed units are ignored — a warranty on
+     * something already written off isn't an action anyone needs prompting about.
+     */
+    @Query("select count(u) from InventoryItemUnit u "
+            + "where u.branchId = :branchId and u.deletedAt is null "
+            + "and u.status <> 'DISPOSED' and u.warrantyEndDate is not null "
+            + "and u.warrantyEndDate between :from and :to")
+    long countUnitsWithWarrantyEndBetween(
+            @Param("branchId") UUID branchId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    @Query("select count(u) from InventoryItemUnit u "
+            + "where u.branchId = :branchId and u.deletedAt is null "
+            + "and u.status <> 'DISPOSED' and u.warrantyEndDate is not null "
+            + "and u.warrantyEndDate < :today")
+    long countUnitsWithWarrantyExpired(
+            @Param("branchId") UUID branchId, @Param("today") LocalDate today);
 
     /**
      * Warranty search — joins to {@code InventoryItem} by id (no mapped JPA association exists

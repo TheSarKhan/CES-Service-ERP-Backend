@@ -3,7 +3,10 @@ package com.ces.service.module.inventory.dto;
 import com.ces.service.module.inventory.entity.InventoryItem;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ces.service.module.inventory.enums.WarrantyStatus;
+import com.ces.service.module.inventory.service.WarrantyClock;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +39,14 @@ public class InventoryItemResponse {
     private BigDecimal purchasePrice;
     private Boolean isSerialized;
     private Map<String, Object> attributes;
+    private Integer warrantyMonths;
+    private LocalDate warrantyStartDate;
+    private LocalDate warrantyEndDate;
+    /**
+     * Derived, never stored. Serialized items report {@code NONE} on purpose: their warranty is
+     * per-unit, so a single status here would contradict the units underneath it.
+     */
+    private WarrantyStatus warrantyStatus;
     private String notes;
     private Boolean isActive;
     private Instant createdAt;
@@ -56,6 +67,13 @@ public class InventoryItemResponse {
                 .purchasePrice(item.getPurchasePrice())
                 .isSerialized(item.getIsSerialized())
                 .attributes(parseAttributes(item.getAttributes()))
+                .warrantyMonths(item.getWarrantyMonths())
+                .warrantyStartDate(item.getWarrantyStartDate())
+                .warrantyEndDate(item.getWarrantyEndDate())
+                .warrantyStatus(
+                        Boolean.TRUE.equals(item.getIsSerialized())
+                                ? WarrantyStatus.NONE
+                                : WarrantyClock.statusOf(item.getWarrantyEndDate()))
                 .notes(item.getNotes())
                 .isActive(item.getIsActive())
                 .createdAt(item.getCreatedAt())

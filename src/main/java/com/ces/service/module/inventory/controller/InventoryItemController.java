@@ -2,6 +2,10 @@ package com.ces.service.module.inventory.controller;
 
 import com.ces.service.common.dto.ApiResponse;
 import com.ces.service.common.dto.PageResponse;
+import com.ces.service.module.approval.dto.ApprovalRequestResponse;
+import com.ces.service.module.approval.entity.ApprovalEntityType;
+import com.ces.service.module.approval.entity.ApprovalOperation;
+import com.ces.service.module.approval.service.ApprovalService;
 import com.ces.service.module.inventory.dto.InventoryItemRequest;
 import com.ces.service.module.inventory.dto.InventoryItemResponse;
 import com.ces.service.module.inventory.dto.MoveItemRequest;
@@ -27,15 +31,24 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Inventory product (Məhsul) endpoints — Stok İdarəetməsi. */
+/**
+ * Inventory product (Məhsul) endpoints — Stok İdarəetməsi.
+ *
+ * <p>Every mutating action here is deferred: instead of applying the change, it is parked as an
+ * approval request and answered with {@code 202 Accepted}. A second person approves it in the
+ * Təsdiqləmələr module, which replays the stored payload through this same service. Creating a
+ * product is deliberately exempt — only edits, moves, deletions and stock movements are reviewed.
+ */
 @RestController
 @RequestMapping("/api/v1/inventory/items")
 public class InventoryItemController {
 
     private final InventoryItemService itemService;
+    private final ApprovalService approvalService;
 
-    public InventoryItemController(InventoryItemService itemService) {
+    public InventoryItemController(InventoryItemService itemService, ApprovalService approvalService) {
         this.itemService = itemService;
+        this.approvalService = approvalService;
     }
 
     @GetMapping
@@ -78,44 +91,54 @@ public class InventoryItemController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('WH_MANAGE')")
-    public ResponseEntity<ApiResponse<InventoryItemResponse>> update(
+    public ResponseEntity<ApiResponse<ApprovalRequestResponse>> update(
             @PathVariable UUID id, @Valid @RequestBody InventoryItemRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(itemService.update(id, request)));
+        return accepted(submit(id, ApprovalOperation.UPDATE, request));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('WH_MANAGE')")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        itemService.delete(id);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<ApiResponse<ApprovalRequestResponse>> delete(@PathVariable UUID id) {
+        return accepted(submit(id, ApprovalOperation.DELETE, null));
     }
 
     @PostMapping("/{id}/move")
     @PreAuthorize("hasAuthority('WH_MANAGE')")
-    public ResponseEntity<ApiResponse<InventoryItemResponse>> move(
+    public ResponseEntity<ApiResponse<ApprovalRequestResponse>> move(
             @PathVariable UUID id, @Valid @RequestBody MoveItemRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(itemService.move(id, request.getNodeId())));
+        return accepted(submit(id, ApprovalOperation.MOVE, request));
     }
 
     @PostMapping("/{id}/stock-in")
     @PreAuthorize("hasAuthority('WH_STOCK_IN')")
-    public ResponseEntity<ApiResponse<InventoryItemResponse>> stockIn(
+    public ResponseEntity<ApiResponse<ApprovalRequestResponse>> stockIn(
             @PathVariable UUID id, @Valid @RequestBody StockQuantityRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(itemService.increaseQuantity(id, request.getQuantity())));
+        return accepted(submit(id, ApprovalOperation.STOCK_IN, request));
     }
 
     @PostMapping("/{id}/stock-out")
     @PreAuthorize("hasAuthority('WH_USE')")
-    public ResponseEntity<ApiResponse<InventoryItemResponse>> stockOut(
+    public ResponseEntity<ApiResponse<ApprovalRequestResponse>> stockOut(
             @PathVariable UUID id, @Valid @RequestBody StockQuantityRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(itemService.decreaseQuantity(id, request.getQuantity())));
+        return accepted(submit(id, ApprovalOperation.STOCK_OUT, request));
     }
 
     @PostMapping("/{id}/adjust")
     @PreAuthorize("hasAuthority('WH_ADJUST')")
-    public ResponseEntity<ApiResponse<InventoryItemResponse>> adjust(
+    public ResponseEntity<ApiResponse<ApprovalRequestResponse>> adjust(
             @PathVariable UUID id, @Valid @RequestBody StockQuantityRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(itemService.adjustQuantity(id, request.getQuantity())));
+        return accepted(submit(id, ApprovalOperation.STOCK_ADJUST, request));
+    }
+
+    /** Parks the operation and snapshots the item as it stands, so the reviewer can see the diff. */
+    private ApprovalRequestResponse submit(UUID id, ApprovalOperation operation, Object payload) {
+        InventoryItemResponse before = itemService.get(id);
+        return approvalService.submit(
+                ApprovalEntityType.INVENTORY_ITEM, id, before.getName(), operation, payload, before);
+    }
+
+    private ResponseEntity<ApiResponse<ApprovalRequestResponse>> accepted(ApprovalRequestResponse request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.ok(request));
     }
 
     private Pageable toPageable(int page, int size, String sort, String dir) {

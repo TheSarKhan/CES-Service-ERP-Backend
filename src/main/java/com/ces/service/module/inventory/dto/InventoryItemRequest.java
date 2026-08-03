@@ -1,10 +1,12 @@
 package com.ces.service.module.inventory.dto;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -55,6 +57,15 @@ public class InventoryItemRequest {
 
     /** Dynamic field values, keyed by the owning category's field_key. */
     private Map<String, Object> attributes;
+
+    /** Warranty length in months; drives the end date when one isn't given explicitly. */
+    @Min(0)
+    private Integer warrantyMonths;
+
+    private LocalDate warrantyStartDate;
+
+    /** Ignored for serialized items — their warranty is tracked per unit. */
+    private LocalDate warrantyEndDate;
 
     @Size(max = 2000)
     private String notes;
