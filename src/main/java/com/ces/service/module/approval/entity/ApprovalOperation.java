@@ -15,5 +15,7 @@ public enum ApprovalOperation {
     FIELD_UPDATE,
     FIELD_DELETE,
     /** Moving a warranty end date — reviewed because it decides who pays for a repair. */
-    WARRANTY_EXTEND
+    WARRANTY_EXTEND,
+    /** Applying a closed stocktake's counted figures. */
+    STOCKTAKE_APPLY
 }

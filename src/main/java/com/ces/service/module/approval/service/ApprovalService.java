@@ -137,26 +137,32 @@ public class ApprovalService {
     public ApprovalRequestResponse approve(UUID id, String note) {
         ApprovalRequest request = loadPendingForDecision(id);
 
-        ApprovalExecutor executor = executors.get(request.getEntityType());
-        if (executor == null) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR);
-        }
         // Runs before the status flips: if applying fails, the whole transaction rolls back and
         // the request stays PENDING rather than being marked approved with nothing applied.
-        executor.execute(request);
+        executorFor(request).execute(request);
 
         return ApprovalRequestResponse.from(decide(request, ApprovalStatus.APPROVED, note));
     }
 
     public ApprovalRequestResponse reject(UUID id, String note) {
-        return ApprovalRequestResponse.from(
-                decide(loadPendingForDecision(id), ApprovalStatus.REJECTED, note));
+        ApprovalRequest request = loadPendingForDecision(id);
+        executorFor(request).onNotApplied(request);
+        return ApprovalRequestResponse.from(decide(request, ApprovalStatus.REJECTED, note));
+    }
+
+    private ApprovalExecutor executorFor(ApprovalRequest request) {
+        ApprovalExecutor executor = executors.get(request.getEntityType());
+        if (executor == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR);
+        }
+        return executor;
     }
 
     /** The requester withdrawing their own request — releases the lock without applying anything. */
     public ApprovalRequestResponse cancel(UUID id) {
         ApprovalRequest request = load(id);
         assertStillPending(request);
+        executorFor(request).onNotApplied(request);
         UUID currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
         if (request.getRequestedBy() != null && !request.getRequestedBy().equals(currentUserId)) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);

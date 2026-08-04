@@ -19,4 +19,15 @@ public interface ApprovalExecutor {
      * change that failed to apply.
      */
     void execute(ApprovalRequest request);
+
+    /**
+     * Lets a module react to its request being turned down or withdrawn.
+     *
+     * <p>Most records need nothing: rejecting an edit simply means it never happened. A record that
+     * parked itself in a waiting state to make the request — a closed stocktake, say — has to be
+     * let out of it, or it stays stuck and blocks the next one forever.
+     */
+    default void onNotApplied(ApprovalRequest request) {
+        // Nothing to undo by default.
+    }
 }

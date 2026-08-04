@@ -5,5 +5,7 @@ public enum ApprovalEntityType {
     INVENTORY_ITEM,
     INVENTORY_ITEM_UNIT,
     INVENTORY_NODE,
-    INVENTORY_CATEGORY
+    INVENTORY_CATEGORY,
+    /** A whole counting sheet: one approval covers every variance on it. */
+    INVENTORY_STOCKTAKE
 }

@@ -22,6 +22,9 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
 
     boolean existsByNodeIdAndDeletedAtIsNull(UUID nodeId);
 
+    /** Everything held at one folder — the opening list of a counting sheet. */
+    List<InventoryStock> findByNodeIdAndDeletedAtIsNull(UUID nodeId);
+
     /**
      * Same row, but locked for the duration of the transaction.
      *
