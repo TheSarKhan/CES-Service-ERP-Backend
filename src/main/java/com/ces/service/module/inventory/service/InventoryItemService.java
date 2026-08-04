@@ -105,6 +105,7 @@ public class InventoryItemService {
                 .warrantyMonths(request.getWarrantyMonths())
                 .warrantyStartDate(request.getWarrantyStartDate())
                 .warrantyEndDate(resolveWarrantyEnd(request, isSerializedRequest(request)))
+                .supplier(request.getSupplier())
                 .notes(request.getNotes())
                 .isActive(request.getIsActive() == null ? Boolean.TRUE : request.getIsActive())
                 .build();
@@ -141,6 +142,7 @@ public class InventoryItemService {
         item.setWarrantyMonths(request.getWarrantyMonths());
         item.setWarrantyStartDate(request.getWarrantyStartDate());
         item.setWarrantyEndDate(resolveWarrantyEnd(request, item.getIsSerialized()));
+        item.setSupplier(request.getSupplier());
         item.setNotes(request.getNotes());
         if (request.getIsActive() != null) {
             item.setIsActive(request.getIsActive());

@@ -47,6 +47,8 @@ public class InventoryItemResponse {
      * per-unit, so a single status here would contradict the units underneath it.
      */
     private WarrantyStatus warrantyStatus;
+    /** Who a warranty claim on this product would be addressed to. */
+    private String supplier;
     private String notes;
     private Boolean isActive;
     private Instant createdAt;
@@ -74,6 +76,7 @@ public class InventoryItemResponse {
                         Boolean.TRUE.equals(item.getIsSerialized())
                                 ? WarrantyStatus.NONE
                                 : WarrantyClock.statusOf(item.getWarrantyEndDate()))
+                .supplier(item.getSupplier())
                 .notes(item.getNotes())
                 .isActive(item.getIsActive())
                 .createdAt(item.getCreatedAt())

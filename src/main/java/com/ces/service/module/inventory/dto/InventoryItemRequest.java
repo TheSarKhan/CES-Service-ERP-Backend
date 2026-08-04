@@ -67,6 +67,10 @@ public class InventoryItemRequest {
     /** Ignored for serialized items — their warranty is tracked per unit. */
     private LocalDate warrantyEndDate;
 
+    /** Supplier the warranty claim would be addressed to. */
+    @Size(max = 255)
+    private String supplier;
+
     @Size(max = 2000)
     private String notes;
 

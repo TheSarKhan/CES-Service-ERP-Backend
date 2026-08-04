@@ -93,6 +93,13 @@ public class InventoryItem extends BaseEntity {
     @Column(name = "warranty_end_date")
     private LocalDate warrantyEndDate;
 
+    /**
+     * Who the warranty claim goes to. A real column rather than a dynamic category attribute: it's
+     * filtered and grouped by on the warranty screen, and JSONB can do neither cheaply.
+     */
+    @Column(name = "supplier", length = 255)
+    private String supplier;
+
     @Column(name = "notes", columnDefinition = "text")
     private String notes;
 
