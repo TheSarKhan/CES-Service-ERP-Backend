@@ -146,7 +146,6 @@ public class ApprovalService {
 
     public ApprovalRequestResponse reject(UUID id, String note) {
         ApprovalRequest request = loadPendingForDecision(id);
-        executorFor(request).onNotApplied(request);
         return ApprovalRequestResponse.from(decide(request, ApprovalStatus.REJECTED, note));
     }
 
@@ -162,7 +161,6 @@ public class ApprovalService {
     public ApprovalRequestResponse cancel(UUID id) {
         ApprovalRequest request = load(id);
         assertStillPending(request);
-        executorFor(request).onNotApplied(request);
         UUID currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
         if (request.getRequestedBy() != null && !request.getRequestedBy().equals(currentUserId)) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);

@@ -5,7 +5,7 @@ package com.ces.service.module.inventory.enums;
  *
  * <p>Kept separate from {@code ApprovalOperation} on purpose: an approval describes what somebody
  * *asked for*, a movement describes what actually happened to the shelf. A relocation is one
- * request but two movements, and a stocktake is one session but many.
+ * request but two movements.
  */
 public enum StockMovementType {
 

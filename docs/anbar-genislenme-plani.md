@@ -9,10 +9,9 @@ seçimin niyə edildiyi kodun özündən görünməyəndə burada qalsın.
 |---|---|---|
 | Multi-location | `inventory_stock (məhsul, qovluq, miqdar)` — məhsul kataloq qeydidir | Eyni məhsul bir neçə rəfdə olur; «cəmi neçə var» sualının bir cavabı olmalıdır |
 | Qalıq həqiqəti | Seriyasızda `inventory_stock`, seriyalıda vahidlər (stok sətri onlardan yenidən hesablanır) | İki mənbə gec-tez bir-birini tutmur |
-| Hərəkət jurnalı | `inventory_stock_movements`, dəyişməz sətirlər | Tarixçə, transfer və sayım fərqlərinin təməli |
+| Hərəkət jurnalı | `inventory_stock_movements`, dəyişməz sətirlər | Tarixçə, köçürmə və sayım düzəlişlərinin təməli |
 | Minimum stok | Məhsul üzrə, **ümumi qalıqla** müqayisə | «Sifariş verim?» sualı məhsul haqqındadır, rəf haqqında deyil |
-| İnventarizasiya | **Kor sayım** — sayan adam sistem miqdarını görmür | Açıq sayımda adam rəqəmi yoxlamadan təsdiqləyir |
-| Sayım fərqləri | Bütöv sessiya üçün **bir təsdiq** | Paralel təsdiq qorunur, 200 sətri tək-tək təsdiqləmək məcburiyyəti olmur |
+| ~~İnventarizasiya~~ | **Ləğv edildi** (V45) — sayım düzəlişi məhsul kartındakı «Sayım» düyməsində qalır | Bax: «İnventarizasiya niyə atıldı» |
 | ~~Transfer~~ | **Ləğv edildi** (V44) — qovluqlar arası köçürmə üçün məhsul kartındakı «Köçür» qalır | Bax: «Transfer niyə atıldı» |
 | Lot | Lot-lar ayrıca, **FEFO təklif olunur** (məcbur edilmir) | Köhnə partiya anbarda qalıb bitməsin, amma istisna hallar bağlanmasın |
 | Xəbərdarlıq | Sistem daxili + **gündəlik email** (Gmail SMTP) | |
@@ -33,10 +32,34 @@ seçimin niyə edildiyi kodun özündən görünməyəndə burada qalsın.
 | 2 | Hərəkət tarixçəsi UI (məhsul kartında tab) | ✅ |
 | 3 | Minimum/kritik stok, xəbərdarlıqlar, gündəlik email | ✅ V40 |
 | 4 | ~~Transfer (göndər → yolda → qəbul)~~ | ⛔ V41-də quruldu, V44-də ləğv edildi |
-| 5 | İnventarizasiya (kor sayım, bir təsdiqlə tətbiq) | ✅ V42 |
+| 5 | ~~İnventarizasiya (kor sayım, bir təsdiqlə tətbiq)~~ | ⛔ V42-də quruldu, V45-də ləğv edildi |
 | 6 | Lot / son istifadə tarixi / FEFO | ✅ V43 |
 
 Növbəti addım: SMTP açarını `.env`-ə yazmaq və serverə deploy.
+
+## İnventarizasiya niyə atıldı
+
+Vərəq mexanizmi kor sayım idi: sayan adam sistem rəqəmini görmür, bütöv qovluq bir sessiyada
+sayılır, fərqlərin hamısı bir təsdiqlə tətbiq olunur.
+
+Yerində qalan: məhsul kartındakı **«Sayım»** düyməsi — `POST /inventory/items/{id}/adjust`,
+`StockLedger.setAbsolute` ilə mütləq rəqəm yazır, jurnala `ADJUST` sətri düşür, təsdiq
+növbəsindən keçir.
+
+**İtirilən iki şey, açıq deyilir:**
+
+1. **Kor sayım.** Kart dialoqunda cari qalıq göz önündədir. «105 görüb 105 yazmaq» riski geri
+   qayıdır — vərəqin mövcud olma səbəbi məhz bu idi.
+2. **Sessiya.** Bütöv rəfi saymaq üçün hər məhsul ayrıca açılır; «bu qovluqda nə sayılmayıb»
+   sualının cavabı yoxdur.
+
+Qərar şüurlu verildi: bir otaqlı anbarda ayrıca modul saxlamaq bu iki faydaya dəymirdi.
+
+`approval_requests`-dəki `STOCKTAKE_APPLY` sətirləri **silinmir** — baş vermiş qərarlardır.
+Ona görə `ApprovalOperation.STOCKTAKE_APPLY` və `ApprovalEntityType.INVENTORY_STOCKTAKE`
+enum-ları da qalır: silinsə, təsdiq tarixçəsi ümumiyyətlə yüklənməzdi.
+
+`ApprovalExecutor.onNotApplied` tamamilə çıxarıldı — yeganə implementasiyası sayım vərəqi idi.
 
 ## Transfer niyə atıldı
 

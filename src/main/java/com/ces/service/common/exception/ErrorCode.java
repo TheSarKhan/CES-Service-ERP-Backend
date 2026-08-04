@@ -66,8 +66,6 @@ public enum ErrorCode {
     NODE_CATEGORY_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_ENTITY, "This category is not among the categories allowed at this node"),
     SYSTEM_FIELD_PROTECTED(HttpStatus.UNPROCESSABLE_ENTITY, "System fields are auto-created for every category and cannot be removed"),
     ENTITY_PENDING_APPROVAL(HttpStatus.UNPROCESSABLE_ENTITY, "This record already has a change waiting for approval"),
-    STOCKTAKE_NOT_OPEN(HttpStatus.UNPROCESSABLE_ENTITY, "This stocktake is no longer open for counting"),
-    STOCKTAKE_ALREADY_OPEN(HttpStatus.UNPROCESSABLE_ENTITY, "This folder already has a stocktake in progress"),
     LOT_NOT_TRACKED(HttpStatus.UNPROCESSABLE_ENTITY, "This product does not track batches"),
     APPROVAL_SELF_DECISION(HttpStatus.UNPROCESSABLE_ENTITY, "You cannot approve or reject your own request"),
     APPROVAL_ALREADY_DECIDED(HttpStatus.UNPROCESSABLE_ENTITY, "This request has already been decided"),

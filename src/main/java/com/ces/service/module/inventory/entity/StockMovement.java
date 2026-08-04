@@ -22,7 +22,7 @@ import lombok.ToString;
  *
  * <p>Rows are never edited or deleted: a mistaken movement is closed with an opposing movement, the
  * way a ledger works. That is what makes "where did these 50 come from" answerable months later —
- * and it is also what stocktake variances and relocations are built on.
+ * and it is also what count corrections and relocations are built on.
  */
 @Entity
 @Table(name = "inventory_stock_movements", schema = "ces_service")
@@ -60,7 +60,7 @@ public class StockMovement extends BaseEntity {
     @Column(name = "balance_after", nullable = false, precision = 12, scale = 3)
     private BigDecimal balanceAfter;
 
-    /** What caused it: APPROVAL, ITEM_MOVE, STOCKTAKE, UNIT — free-form so new sources fit. */
+    /** What caused it: APPROVAL, ITEM_MOVE, UNIT — free-form so new sources fit. */
     @Column(name = "reference_type", length = 30)
     private String referenceType;
 

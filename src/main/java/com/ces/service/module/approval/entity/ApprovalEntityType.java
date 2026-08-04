@@ -6,6 +6,9 @@ public enum ApprovalEntityType {
     INVENTORY_ITEM_UNIT,
     INVENTORY_NODE,
     INVENTORY_CATEGORY,
-    /** A whole counting sheet: one approval covers every variance on it. */
+    /**
+     * Historical. The stocktake sheet was removed, but decided requests still carry this type and
+     * dropping the constant would make the approval history fail to load.
+     */
     INVENTORY_STOCKTAKE
 }
