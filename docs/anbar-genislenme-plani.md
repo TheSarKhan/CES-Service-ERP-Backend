@@ -13,8 +13,7 @@ seçimin niyə edildiyi kodun özündən görünməyəndə burada qalsın.
 | Minimum stok | Məhsul üzrə, **ümumi qalıqla** müqayisə | «Sifariş verim?» sualı məhsul haqqındadır, rəf haqqında deyil |
 | İnventarizasiya | **Kor sayım** — sayan adam sistem miqdarını görmür | Açıq sayımda adam rəqəmi yoxlamadan təsdiqləyir |
 | Sayım fərqləri | Bütöv sessiya üçün **bir təsdiq** | Paralel təsdiq qorunur, 200 sətri tək-tək təsdiqləmək məcburiyyəti olmur |
-| Transfer | **İki addım**: göndər → yolda → qəbul et | Fiziki köçürmə vaxt aparır; mal heç bir yerdə görünməyən vaxt olmamalıdır |
-| Transfer qəbulu | Qəbul edən göndərəndən fərqli olmalıdır — **filial üzrə açılıb-bağlanan** | Böyük filialda nəzarət, kiçikdə blok olmasın |
+| ~~Transfer~~ | **Ləğv edildi** (V44) — qovluqlar arası köçürmə üçün məhsul kartındakı «Köçür» qalır | Bax: «Transfer niyə atıldı» |
 | Lot | Lot-lar ayrıca, **FEFO təklif olunur** (məcbur edilmir) | Köhnə partiya anbarda qalıb bitməsin, amma istisna hallar bağlanmasın |
 | Xəbərdarlıq | Sistem daxili + **gündəlik email** (Gmail SMTP) | |
 | Email alıcıları | **Əl ilə ünvan siyahısı**, Anbar Konfiqurasiyadan | |
@@ -33,11 +32,41 @@ seçimin niyə edildiyi kodun özündən görünməyəndə burada qalsın.
 | 1 | Multi-location (`inventory_stock`) + bütün UI | ✅ V38 |
 | 2 | Hərəkət tarixçəsi UI (məhsul kartında tab) | ✅ |
 | 3 | Minimum/kritik stok, xəbərdarlıqlar, gündəlik email | ✅ V40 |
-| 4 | Transfer (göndər → yolda → qəbul) | ✅ V41 |
+| 4 | ~~Transfer (göndər → yolda → qəbul)~~ | ⛔ V41-də quruldu, V44-də ləğv edildi |
 | 5 | İnventarizasiya (kor sayım, bir təsdiqlə tətbiq) | ✅ V42 |
 | 6 | Lot / son istifadə tarixi / FEFO | ✅ V43 |
 
-Hamısı bitib. Növbəti addım: SMTP açarını `.env`-ə yazmaq və serverə deploy.
+Növbəti addım: SMTP açarını `.env`-ə yazmaq və serverə deploy.
+
+## Transfer niyə atıldı
+
+Modul iki addımlı idi: göndər → «yolda» → qəbul et. Bütün dəyəri malın rəfdən çıxdığı və
+təyinata çatdığı anlar arasındakı **müddəti** qeyd etməkdə idi — sayım vaxtı «bu 100 metr
+haradadır?» sualına cavab verirdi.
+
+Bir otaqlı anbarda o müddət saniyələrlə ölçülür. Yəni qeyd etməyə dəyər bir şey yoxdur, amma
+hər köçürməyə ikinci düymə basmaq borcu qalır — həll etdiyindən çox iş yaradan modul.
+
+Yerində qalan: **`POST /inventory/items/{id}/move`** — təsdiq növbəsindən keçir, jurnala
+`TRANSFER_OUT` + `TRANSFER_IN` cütü yazır.
+
+### Qismən köçürmə
+
+`MoveItemRequest.quantity` opsionaldır:
+
+- **boş** → qovluqdakı bütün qalıq gedir, mənbə stok sətri bağlanır (məhsul orada qalmır);
+- **rəqəm** → qalıq bölünür, mənbə sətri **yaşayır** — məhsul hər iki qovluqda olur.
+
+İki qayda kodda bir yerdə saxlanılır (`resolveMoveAmount`), çünki sorğu **parklanmazdan əvvəl**
+(`assertMovable`) və təsdiqləndikdən **sonra** eyni şeyi rədd etməlidir. İlk versiyada yalnız
+təsdiq anında yoxlanılırdı: 999999 ədədlik sorğu növbəyə düşür və heç vaxt təsdiqlənə bilməyəcəyi
+halda məhsulu kilidləyirdi — bu, 3-cü qaydanın pozulması idi.
+
+Seriyalı məhsulda miqdar göndərmək `ITEM_IS_SERIALIZED` ilə rədd olunur: orada qalıq vahidlərdən
+yenidən hesablanır, ona görə əl ilə bölünmüş rəqəm ilk vahid dəyişikliyində üstündən yazılardı.
+
+Modul geri qaytarılarsa: V41 faylı repo-da qalıb (Flyway tətbiq edilmiş miqrasiyanın yoxa
+çıxmasını xəta sayır), silinən Java sinifləri git tarixçəsindədir.
 
 ## Qaydalar (kod yazarkən pozulmamalı)
 

@@ -107,6 +107,7 @@ public class InventoryItemController {
     public ResponseEntity<ApiResponse<ApprovalRequestResponse>> move(
             @PathVariable UUID id, @Valid @RequestBody MoveItemRequest request) {
         itemService.assertCanReceiveStock(id, request.getToNodeId());
+        itemService.assertMovable(id, request.getFromNodeId(), request.getToNodeId(), request.getQuantity());
         return accepted(submit(id, ApprovalOperation.MOVE, request));
     }
 

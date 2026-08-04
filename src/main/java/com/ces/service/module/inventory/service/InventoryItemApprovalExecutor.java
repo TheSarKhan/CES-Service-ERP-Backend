@@ -48,7 +48,8 @@ public class InventoryItemApprovalExecutor implements ApprovalExecutor {
             case DELETE -> itemService.delete(request.getEntityId());
             case MOVE -> {
                 MoveItemRequest move = approvalService.readPayload(request, MoveItemRequest.class);
-                itemService.move(request.getEntityId(), move.getFromNodeId(), move.getToNodeId());
+                itemService.move(
+                        request.getEntityId(), move.getFromNodeId(), move.getToNodeId(), move.getQuantity());
             }
             case STOCK_IN -> {
                 StockQuantityRequest stock = approvalService.readPayload(request, StockQuantityRequest.class);

@@ -208,12 +208,16 @@ public class InventoryItemService {
     }
 
     /**
-     * Moves everything held at one folder to another ("Məhsulu başqa yerə köçür").
+     * Moves stock from one folder to another ("Məhsulu başqa yerə köçür").
+     *
+     * <p>A null {@code quantity} moves the whole balance and the source folder stops holding the
+     * product at all. A smaller amount splits it instead, leaving the product filed in both
+     * folders — which is why the source stock row survives a partial move but not a full one.
      *
      * <p>Recorded as two ledger lines rather than one edited row: the stock genuinely left one
      * shelf and arrived at another, and a history that hides that cannot explain a later count.
      */
-    public InventoryItemResponse move(UUID id, UUID fromNodeId, UUID toNodeId) {
+    public InventoryItemResponse move(UUID id, UUID fromNodeId, UUID toNodeId, BigDecimal quantity) {
         InventoryItem item = loadItem(id);
         if (fromNodeId.equals(toNodeId)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
@@ -225,7 +229,8 @@ public class InventoryItemService {
                 .findByItemIdAndNodeIdAndDeletedAtIsNull(item.getId(), fromNodeId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Inventory stock not found for node: " + fromNodeId));
-        BigDecimal moving = source.getQuantity();
+        BigDecimal available = source.getQuantity();
+        BigDecimal moving = resolveMoveAmount(item, available, quantity);
 
         if (moving.signum() > 0) {
             stockLedger.move(item.getId(), fromNodeId, StockMovementType.TRANSFER_OUT,
@@ -237,12 +242,59 @@ public class InventoryItemService {
             // over so it doesn't vanish from both folders.
             ensureLocation(item.getId(), toNodeId, item.getBranchId());
         }
-        source.setDeletedAt(Instant.now());
-        stockRepository.save(source);
+
+        // Retire the source row only when nothing is left behind. On a partial move the product
+        // genuinely sits in both folders and the row has to survive to say so.
+        if (available.subtract(moving).signum() == 0) {
+            source.setDeletedAt(Instant.now());
+            stockRepository.save(source);
+        }
 
         auditLogger.log("BUSINESS", "INVENTORY_ITEM", item.getId(),
                 Map.of("nodeId", fromNodeId), Map.of("nodeId", toNodeId, "quantity", moving));
         return describe(item);
+    }
+
+    /**
+     * How much a move will actually shift, refusing the amounts it cannot honour.
+     *
+     * <p>Shared by the submit-time guard and the approved execution so both refuse the same things:
+     * if these ever disagree, a request gets parked that can never be approved.
+     */
+    private BigDecimal resolveMoveAmount(InventoryItem item, BigDecimal available, BigDecimal quantity) {
+        if (quantity == null) {
+            return available;
+        }
+        // A serialized product's balance is recomputed from its units, so a partial move here would
+        // be overwritten the moment a unit changes. There, units are what move.
+        if (Boolean.TRUE.equals(item.getIsSerialized())) {
+            throw new BusinessException(ErrorCode.ITEM_IS_SERIALIZED);
+        }
+        requirePositive(quantity);
+        if (quantity.compareTo(available) > 0) {
+            throw new BusinessException(ErrorCode.STOCK_INSUFFICIENT);
+        }
+        return quantity;
+    }
+
+    /**
+     * Checks a move before the controller parks it for approval.
+     *
+     * <p>A pending request locks the product until somebody decides it, so a move that could never
+     * be applied — more than the shelf holds, an amount on a serialized product — has to be refused
+     * while the requester is still on the screen. Discovering it at approval time would mean the
+     * product sat blocked in the meantime for nothing.
+     */
+    public void assertMovable(UUID id, UUID fromNodeId, UUID toNodeId, BigDecimal quantity) {
+        InventoryItem item = loadItem(id);
+        if (fromNodeId.equals(toNodeId)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        InventoryStock source = stockRepository
+                .findByItemIdAndNodeIdAndDeletedAtIsNull(id, fromNodeId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Inventory stock not found for node: " + fromNodeId));
+        resolveMoveAmount(item, source.getQuantity(), quantity);
     }
 
     /** Stock-in at one folder ("Miqdarı artır"). */
