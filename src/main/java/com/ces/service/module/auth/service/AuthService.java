@@ -32,6 +32,9 @@ public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
+    /** How long a rotated (superseded) refresh token remains accepted. */
+    private static final Duration REFRESH_ROTATION_GRACE = Duration.ofSeconds(30);
+
     private final AuthUserGateway userGateway;
     private final JwtService jwtService;
     private final RedisTokenStore tokenStore;
@@ -89,9 +92,10 @@ public class AuthService {
             throw new BusinessException(ErrorCode.AUTH_ACCOUNT_INACTIVE);
         }
 
-        // Rotate the refresh token: revoke the old one and issue a fresh pair.
-        tokenStore.revokeRefresh(claims.subject(), claims.jti());
-        UUID activeBranch = defaultBranch(user);
+        // Rotate the refresh token: the old one stays valid only for a short
+        // grace window so concurrent tabs refreshing with it are not logged out.
+        tokenStore.markRotated(claims.subject(), claims.jti(), REFRESH_ROTATION_GRACE);
+        UUID activeBranch = resolveBranch(user, request.branchId());
         return issueTokens(user, activeBranch);
     }
 
@@ -174,6 +178,18 @@ public class AuthService {
                 permissions,
                 user.mustChangePassword()
         );
+    }
+
+    /**
+     * Keep the client's current branch across a refresh when it is still a
+     * valid membership; otherwise fall back to the default branch.
+     */
+    private UUID resolveBranch(AuthUserGateway.AuthUser user, UUID requestedBranch) {
+        if (requestedBranch != null && user.branches() != null
+                && user.branches().stream().anyMatch(b -> b.branchId().equals(requestedBranch))) {
+            return requestedBranch;
+        }
+        return defaultBranch(user);
     }
 
     private UUID defaultBranch(AuthUserGateway.AuthUser user) {

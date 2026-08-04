@@ -61,6 +61,19 @@ public class RedisTokenStore {
     }
 
     /**
+     * Rotate a refresh token but keep it accepted for a short grace window
+     * instead of deleting it immediately. Concurrent clients (e.g. a second
+     * browser tab) that still hold the pre-rotation token can then complete
+     * their own refresh instead of being hard-logged-out.
+     */
+    public void markRotated(UUID userId, String jti, Duration grace) {
+        Duration effective = grace == null || grace.isNegative() || grace.isZero()
+                ? Duration.ofSeconds(1)
+                : grace;
+        redis.expire(CacheKeys.refresh(userId, jti), effective);
+    }
+
+    /**
      * Revoke every refresh token belonging to a user (e.g. on logout-all or a
      * password change).
      */
