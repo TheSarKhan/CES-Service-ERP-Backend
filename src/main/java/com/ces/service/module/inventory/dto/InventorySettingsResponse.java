@@ -20,9 +20,6 @@ public class InventorySettingsResponse {
 
     private Boolean dailyDigestEnabled;
 
-    /** When true, a transfer cannot be received by the person who sent it. */
-    private Boolean transferRequiresDifferentReceiver;
-
     /**
      * False when no SMTP host is configured on the server: the screen has to say so, otherwise
      * somebody types addresses in and waits for mail that was never going to be sent.

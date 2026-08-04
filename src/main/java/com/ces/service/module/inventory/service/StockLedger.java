@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * The only place stock quantities change.
  *
- * <p>Every caller — stock-in, stock-out, count corrections, transfers, unit registration — goes
+ * <p>Every caller — stock-in, stock-out, count corrections, relocations, unit registration — goes
  * through here, so every change leaves a ledger line behind. Letting services write
  * {@code inventory_stock} directly is exactly how a history ends up with holes in it, and a history
  * with holes is worse than none: it looks authoritative.

@@ -21,6 +21,4 @@ public class InventorySettingsRequest {
     private List<@Email @Size(max = 255) String> notificationEmails;
 
     private Boolean dailyDigestEnabled;
-
-    private Boolean transferRequiresDifferentReceiver;
 }

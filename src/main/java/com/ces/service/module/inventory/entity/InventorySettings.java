@@ -17,10 +17,9 @@ import org.hibernate.type.SqlTypes;
 /**
  * Per-branch warehouse settings.
  *
- * <p>A missing row means defaults, so a branch never has to be set up before it works. Both
- * settings here are policy the user chose rather than rules the code should decide: who the daily
- * digest reaches, and whether a transfer must be received by someone other than its sender —
- * necessary control in a large branch, a total blocker in one with a single storekeeper.
+ * <p>A missing row means defaults, so a branch never has to be set up before it works. What lives
+ * here is policy the user chose rather than rules the code should decide — currently who the daily
+ * low-stock digest reaches, and whether it is sent at all.
  */
 @Entity
 @Table(name = "inventory_settings", schema = "ces_service")
@@ -42,8 +41,4 @@ public class InventorySettings extends BaseEntity {
     @Column(name = "daily_digest_enabled", nullable = false)
     @Builder.Default
     private Boolean dailyDigestEnabled = Boolean.TRUE;
-
-    @Column(name = "transfer_requires_different_receiver", nullable = false)
-    @Builder.Default
-    private Boolean transferRequiresDifferentReceiver = Boolean.TRUE;
 }

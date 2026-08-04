@@ -59,9 +59,6 @@ public class InventorySettingsService {
         if (request.getDailyDigestEnabled() != null) {
             settings.setDailyDigestEnabled(request.getDailyDigestEnabled());
         }
-        if (request.getTransferRequiresDifferentReceiver() != null) {
-            settings.setTransferRequiresDifferentReceiver(request.getTransferRequiresDifferentReceiver());
-        }
         return toResponse(repository.save(settings));
     }
 
@@ -100,7 +97,6 @@ public class InventorySettingsService {
         return InventorySettingsResponse.builder()
                 .notificationEmails(parseEmails(settings.getNotificationEmails()))
                 .dailyDigestEnabled(settings.getDailyDigestEnabled())
-                .transferRequiresDifferentReceiver(settings.getTransferRequiresDifferentReceiver())
                 .mailConfigured(isMailConfigured())
                 .build();
     }
