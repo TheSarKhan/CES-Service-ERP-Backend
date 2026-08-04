@@ -9,8 +9,8 @@ import com.ces.service.module.inventory.dto.InventoryNodeResponse;
 import com.ces.service.module.inventory.entity.InventoryCategory;
 import com.ces.service.module.inventory.entity.InventoryNode;
 import com.ces.service.module.inventory.repository.InventoryCategoryRepository;
-import com.ces.service.module.inventory.repository.InventoryItemRepository;
 import com.ces.service.module.inventory.repository.InventoryNodeRepository;
+import com.ces.service.module.inventory.repository.InventoryStockRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,16 +40,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryNodeService {
 
     private final InventoryNodeRepository nodeRepository;
-    private final InventoryItemRepository itemRepository;
     private final InventoryCategoryRepository categoryRepository;
+    private final InventoryStockRepository stockRepository;
 
     public InventoryNodeService(
             InventoryNodeRepository nodeRepository,
-            InventoryItemRepository itemRepository,
-            InventoryCategoryRepository categoryRepository) {
+            InventoryCategoryRepository categoryRepository,
+            InventoryStockRepository stockRepository) {
         this.nodeRepository = nodeRepository;
-        this.itemRepository = itemRepository;
         this.categoryRepository = categoryRepository;
+        this.stockRepository = stockRepository;
     }
 
     @Transactional(readOnly = true)
@@ -159,7 +159,7 @@ public class InventoryNodeService {
         InventoryNode node = loadNode(id);
 
         if (nodeRepository.existsByParentIdAndDeletedAtIsNull(node.getId())
-                || itemRepository.existsByNodeIdAndDeletedAtIsNull(node.getId())) {
+                || stockRepository.existsByNodeIdAndDeletedAtIsNull(node.getId())) {
             throw new BusinessException(ErrorCode.NODE_NOT_EMPTY);
         }
 

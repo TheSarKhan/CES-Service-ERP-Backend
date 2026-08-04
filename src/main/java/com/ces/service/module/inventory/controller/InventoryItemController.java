@@ -106,6 +106,7 @@ public class InventoryItemController {
     @PreAuthorize("hasAuthority('WH_MANAGE')")
     public ResponseEntity<ApiResponse<ApprovalRequestResponse>> move(
             @PathVariable UUID id, @Valid @RequestBody MoveItemRequest request) {
+        itemService.assertCanReceiveStock(id, request.getToNodeId());
         return accepted(submit(id, ApprovalOperation.MOVE, request));
     }
 
@@ -113,6 +114,7 @@ public class InventoryItemController {
     @PreAuthorize("hasAuthority('WH_STOCK_IN')")
     public ResponseEntity<ApiResponse<ApprovalRequestResponse>> stockIn(
             @PathVariable UUID id, @Valid @RequestBody StockQuantityRequest request) {
+        itemService.assertCanReceiveStock(id, request.getNodeId());
         return accepted(submit(id, ApprovalOperation.STOCK_IN, request));
     }
 
@@ -127,6 +129,7 @@ public class InventoryItemController {
     @PreAuthorize("hasAuthority('WH_ADJUST')")
     public ResponseEntity<ApiResponse<ApprovalRequestResponse>> adjust(
             @PathVariable UUID id, @Valid @RequestBody StockQuantityRequest request) {
+        itemService.assertCanReceiveStock(id, request.getNodeId());
         return accepted(submit(id, ApprovalOperation.STOCK_ADJUST, request));
     }
 

@@ -18,13 +18,15 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * A product (Məhsul). Always placed on a leaf {@link InventoryNode} (enforced in the service
- * layer). {@code attributes} holds the dynamic field values defined by its
- * {@link InventoryCategory}'s field schema, keyed by {@code fieldKey}.
+ * A product (Məhsul) — the catalogue entry: what it is, not where it is.
  *
- * <p>{@code isSerialized} items track stock via {@link InventoryItemUnit} rows (one per physical
- * unit, individually warranty-tracked) rather than the {@code quantity} column — the quantity
- * column is only authoritative for non-serialized items.
+ * <p>Location and quantity live in {@link InventoryStock}, one row per folder holding it, because
+ * the same product is routinely kept in more than one place. Its total is the sum of those rows.
+ * For a serialized product the {@link InventoryItemUnit} rows are the truth and the stock rows are
+ * recomputed from them.
+ *
+ * <p>{@code attributes} holds the dynamic field values defined by its {@link InventoryCategory}'s
+ * field schema, keyed by {@code fieldKey}.
  */
 @Entity
 @Table(name = "inventory_items", schema = "ces_service")
@@ -36,9 +38,6 @@ import org.hibernate.type.SqlTypes;
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
 public class InventoryItem extends BaseEntity {
-
-    @Column(name = "node_id", nullable = false)
-    private UUID nodeId;
 
     @Column(name = "category_id", nullable = false)
     private UUID categoryId;
@@ -57,10 +56,6 @@ public class InventoryItem extends BaseEntity {
 
     @Column(name = "unit", nullable = false, length = 50)
     private String unit;
-
-    @Column(name = "quantity", nullable = false, precision = 12, scale = 3)
-    @Builder.Default
-    private BigDecimal quantity = BigDecimal.ZERO;
 
     @Column(name = "purchase_price", nullable = false, precision = 15, scale = 2)
     @Builder.Default

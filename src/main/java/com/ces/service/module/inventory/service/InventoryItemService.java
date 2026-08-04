@@ -6,20 +6,27 @@ import com.ces.service.common.exception.ResourceNotFoundException;
 import com.ces.service.common.security.BranchContext;
 import com.ces.service.module.inventory.dto.InventoryItemRequest;
 import com.ces.service.module.inventory.dto.InventoryItemResponse;
+import com.ces.service.module.inventory.dto.StockLocationResponse;
 import com.ces.service.module.inventory.entity.InventoryCategory;
 import com.ces.service.module.inventory.entity.InventoryItem;
 import com.ces.service.module.inventory.entity.InventoryNode;
+import com.ces.service.module.inventory.entity.InventoryStock;
+import com.ces.service.module.inventory.enums.StockMovementType;
 import com.ces.service.module.inventory.repository.InventoryCategoryRepository;
 import com.ces.service.module.inventory.repository.InventoryItemRepository;
 import com.ces.service.module.inventory.repository.InventoryNodeRepository;
+import com.ces.service.module.inventory.repository.InventoryStockRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -33,9 +40,9 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>SKU unique within branch → {@link ErrorCode#DUPLICATE_SKU}.</li>
  *   <li>A node may hold items directly and have child nodes at the same time — a shelf can carry
  *       loose products and boxes side by side.</li>
- *   <li>Non-serialized items track stock via the {@code quantity} column directly; serialized
- *       items must go through {@code InventoryItemUnitService} instead →
- *       {@link ErrorCode#ITEM_IS_SERIALIZED}.</li>
+ *   <li>Location and quantity live in {@code inventory_stock}, one row per folder, so the same
+ *       product can be held in several places; serialized items must go through
+ *       {@code InventoryItemUnitService} instead → {@link ErrorCode#ITEM_IS_SERIALIZED}.</li>
  *   <li>Stock cannot go negative → {@link ErrorCode#STOCK_INSUFFICIENT}.</li>
  * </ul>
  */
@@ -48,36 +55,43 @@ public class InventoryItemService {
     private final InventoryItemRepository itemRepository;
     private final InventoryNodeRepository nodeRepository;
     private final InventoryCategoryRepository categoryRepository;
+    private final InventoryStockRepository stockRepository;
+    private final StockLedger stockLedger;
     private final InventoryAuditLogger auditLogger;
 
     public InventoryItemService(
             InventoryItemRepository itemRepository,
             InventoryNodeRepository nodeRepository,
             InventoryCategoryRepository categoryRepository,
+            InventoryStockRepository stockRepository,
+            StockLedger stockLedger,
             InventoryAuditLogger auditLogger) {
         this.itemRepository = itemRepository;
         this.nodeRepository = nodeRepository;
         this.categoryRepository = categoryRepository;
+        this.stockRepository = stockRepository;
+        this.stockLedger = stockLedger;
         this.auditLogger = auditLogger;
     }
 
     @Transactional(readOnly = true)
     public Page<InventoryItemResponse> list(UUID categoryId, UUID nodeId, String search, Pageable pageable) {
         UUID branchId = BranchContext.get();
-        return itemRepository.search(branchId, categoryId, nodeId, toLikePattern(search), pageable)
-                .map(InventoryItemResponse::from);
+        Page<InventoryItem> page =
+                itemRepository.search(branchId, categoryId, nodeId, toLikePattern(search), pageable);
+        return page.map(withStock(page.getContent()));
     }
 
     @Transactional(readOnly = true)
     public InventoryItemResponse get(UUID id) {
-        return InventoryItemResponse.from(loadItem(id));
+        return describe(loadItem(id));
     }
 
-    /** See {@link InventoryItemRepository#findDistinctCategoryIdsByNodeId} javadoc. */
+    /** Distinct categories actually present at a node — powers the per-category sections. */
     @Transactional(readOnly = true)
     public List<UUID> listCategoryIdsAtNode(UUID nodeId) {
         UUID branchId = BranchContext.get();
-        return itemRepository.findDistinctCategoryIdsByNodeId(branchId, nodeId);
+        return stockRepository.findDistinctCategoryIdsAtNode(branchId, nodeId);
     }
 
     public InventoryItemResponse create(InventoryItemRequest request) {
@@ -92,13 +106,11 @@ public class InventoryItemService {
         }
 
         InventoryItem item = InventoryItem.builder()
-                .nodeId(node.getId())
                 .categoryId(request.getCategoryId())
                 .name(request.getName())
                 .sku(request.getSku())
                 .barcode(request.getBarcode())
                 .unit(request.getUnit())
-                .quantity(request.getQuantity())
                 .purchasePrice(request.getPurchasePrice())
                 .isSerialized(isSerializedRequest(request))
                 .attributes(toJson(request.getAttributes()))
@@ -113,7 +125,26 @@ public class InventoryItemService {
         item.setQrCode(UUID.randomUUID().toString());
 
         InventoryItem saved = itemRepository.save(item);
-        InventoryItemResponse response = InventoryItemResponse.from(saved);
+
+        // The opening quantity is a real stock event, so it goes through the ledger like any
+        // other. A serialized product opens at zero — its units bring the stock in themselves.
+        BigDecimal opening = isSerializedRequest(request) ? BigDecimal.ZERO : request.getQuantity();
+        if (opening != null && opening.signum() > 0) {
+            stockLedger.move(
+                    saved.getId(),
+                    node.getId(),
+                    StockMovementType.IN,
+                    opening,
+                    "ITEM_CREATE",
+                    saved.getId(),
+                    "İlkin qalıq");
+        } else {
+            // No opening stock, but the product still has to appear in the folder it was filed
+            // under — otherwise it is created into thin air.
+            ensureLocation(saved.getId(), node.getId(), branchId);
+        }
+
+        InventoryItemResponse response = describe(saved);
         auditLogger.log("CREATE", "INVENTORY_ITEM", saved.getId(), null, response);
         return response;
     }
@@ -124,8 +155,12 @@ public class InventoryItemService {
 
         if (!item.getCategoryId().equals(request.getCategoryId())) {
             loadCategory(request.getCategoryId(), item.getBranchId());
+            // Recategorising can strand the product in a folder that refuses the new category, so
+            // every folder currently holding it has to accept it.
+            for (InventoryStock stock : stockRepository.findByItemIdAndDeletedAtIsNull(item.getId())) {
+                assertCategoryAllowed(loadNode(stock.getNodeId(), item.getBranchId()), request.getCategoryId());
+            }
         }
-        assertCategoryAllowed(loadNode(item.getNodeId(), item.getBranchId()), request.getCategoryId());
         if (!item.getSku().equals(request.getSku())
                 && itemRepository.existsByBranchIdAndSkuAndDeletedAtIsNullAndIdNot(
                         item.getBranchId(), request.getSku(), item.getId())) {
@@ -147,73 +182,175 @@ public class InventoryItemService {
         if (request.getIsActive() != null) {
             item.setIsActive(request.getIsActive());
         }
-        // quantity / isSerialized are intentionally not touched here — they change only through
-        // the dedicated stock operations below (and unit-level operations for serialized items).
-        return InventoryItemResponse.from(item);
+        // Location, quantity and isSerialized are intentionally untouched: they change only
+        // through stock operations, moves and unit-level operations.
+        return describe(item);
     }
 
     public void delete(UUID id) {
         InventoryItem item = loadItem(id);
-        if (!item.getIsSerialized() && item.getQuantity().compareTo(BigDecimal.ZERO) > 0) {
+        if (stockLedger.totalFor(item.getId()).signum() > 0) {
             throw new BusinessException(ErrorCode.ITEM_HAS_STOCK);
         }
-        // TODO(inventory-units): also block when serialized items still have active units.
         item.setDeletedAt(Instant.now());
         itemRepository.save(item);
         auditLogger.log("DELETE", "INVENTORY_ITEM", item.getId(), null, null);
     }
 
-    /** Relocates a product to a different leaf node ("Məhsulu başqa yerə köçür"). */
-    public InventoryItemResponse move(UUID id, UUID newNodeId) {
+    /**
+     * Moves everything held at one folder to another ("Məhsulu başqa yerə köçür").
+     *
+     * <p>Recorded as two ledger lines rather than one edited row: the stock genuinely left one
+     * shelf and arrived at another, and a history that hides that cannot explain a later count.
+     */
+    public InventoryItemResponse move(UUID id, UUID fromNodeId, UUID toNodeId) {
         InventoryItem item = loadItem(id);
-        UUID oldNodeId = item.getNodeId();
-        InventoryNode newNode = loadNode(newNodeId, item.getBranchId());
-        assertCategoryAllowed(newNode, item.getCategoryId());
-        item.setNodeId(newNode.getId());
-        auditLogger.log(
-                "BUSINESS", "INVENTORY_ITEM", item.getId(), Map.of("nodeId", oldNodeId), Map.of("nodeId", newNode.getId()));
-        return InventoryItemResponse.from(item);
-    }
-
-    /** Stock-in for non-serialized items ("Miqdarı artır"). */
-    public InventoryItemResponse increaseQuantity(UUID id, BigDecimal delta) {
-        InventoryItem item = loadNonSerializedItem(id);
-        requirePositive(delta);
-        BigDecimal before = item.getQuantity();
-        item.setQuantity(before.add(delta));
-        auditLogger.log(
-                "BUSINESS", "INVENTORY_ITEM", item.getId(), Map.of("quantity", before), Map.of("quantity", item.getQuantity()));
-        return InventoryItemResponse.from(item);
-    }
-
-    /** Stock-out for non-serialized items ("Miqdarı azalt"). */
-    public InventoryItemResponse decreaseQuantity(UUID id, BigDecimal delta) {
-        InventoryItem item = loadNonSerializedItem(id);
-        requirePositive(delta);
-        if (item.getQuantity().compareTo(delta) < 0) {
-            throw new BusinessException(ErrorCode.STOCK_INSUFFICIENT);
-        }
-        BigDecimal before = item.getQuantity();
-        item.setQuantity(before.subtract(delta));
-        auditLogger.log(
-                "BUSINESS", "INVENTORY_ITEM", item.getId(), Map.of("quantity", before), Map.of("quantity", item.getQuantity()));
-        return InventoryItemResponse.from(item);
-    }
-
-    /** Inventory-count correction for non-serialized items ("Sayım fərqi"). */
-    public InventoryItemResponse adjustQuantity(UUID id, BigDecimal newQuantity) {
-        InventoryItem item = loadNonSerializedItem(id);
-        if (newQuantity == null || newQuantity.compareTo(BigDecimal.ZERO) < 0) {
+        if (fromNodeId.equals(toNodeId)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         }
-        BigDecimal before = item.getQuantity();
-        item.setQuantity(newQuantity);
-        auditLogger.log(
-                "BUSINESS", "INVENTORY_ITEM", item.getId(), Map.of("quantity", before), Map.of("quantity", newQuantity));
-        return InventoryItemResponse.from(item);
+        InventoryNode target = loadNode(toNodeId, item.getBranchId());
+        assertCategoryAllowed(target, item.getCategoryId());
+
+        InventoryStock source = stockRepository
+                .findByItemIdAndNodeIdAndDeletedAtIsNull(item.getId(), fromNodeId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Inventory stock not found for node: " + fromNodeId));
+        BigDecimal moving = source.getQuantity();
+
+        if (moving.signum() > 0) {
+            stockLedger.move(item.getId(), fromNodeId, StockMovementType.TRANSFER_OUT,
+                    moving.negate(), "ITEM_MOVE", item.getId(), null);
+            stockLedger.move(item.getId(), toNodeId, StockMovementType.TRANSFER_IN,
+                    moving, "ITEM_MOVE", item.getId(), null);
+        } else {
+            // Nothing on the shelf, but the product was still filed there — carry the placement
+            // over so it doesn't vanish from both folders.
+            ensureLocation(item.getId(), toNodeId, item.getBranchId());
+        }
+        source.setDeletedAt(Instant.now());
+        stockRepository.save(source);
+
+        auditLogger.log("BUSINESS", "INVENTORY_ITEM", item.getId(),
+                Map.of("nodeId", fromNodeId), Map.of("nodeId", toNodeId, "quantity", moving));
+        return describe(item);
+    }
+
+    /** Stock-in at one folder ("Miqdarı artır"). */
+    public InventoryItemResponse increaseQuantity(UUID id, UUID nodeId, BigDecimal delta, String reason) {
+        InventoryItem item = loadNonSerializedItem(id);
+        requirePositive(delta);
+        assertNodeUsable(item, nodeId);
+        stockLedger.move(item.getId(), nodeId, StockMovementType.IN, delta, "APPROVAL", null, reason);
+        return describe(item);
+    }
+
+    /** Stock-out from one folder ("Miqdarı azalt"). */
+    public InventoryItemResponse decreaseQuantity(UUID id, UUID nodeId, BigDecimal delta, String reason) {
+        InventoryItem item = loadNonSerializedItem(id);
+        requirePositive(delta);
+        stockLedger.move(item.getId(), nodeId, StockMovementType.OUT, delta.negate(), "APPROVAL", null, reason);
+        return describe(item);
+    }
+
+    /** Count correction at one folder ("Sayım fərqi"). */
+    public InventoryItemResponse adjustQuantity(UUID id, UUID nodeId, BigDecimal newQuantity, String reason) {
+        InventoryItem item = loadNonSerializedItem(id);
+        if (newQuantity == null || newQuantity.signum() < 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        assertNodeUsable(item, nodeId);
+        stockLedger.setAbsolute(item.getId(), nodeId, newQuantity, "APPROVAL", null, reason);
+        return describe(item);
+    }
+
+    /**
+     * Rejects an impossible stock destination before the request is ever parked.
+     *
+     * <p>A pending request locks the product, so queuing one that can only fail at approval time
+     * would block every other change to it until somebody rejects it — and the person who made the
+     * mistake would never learn of it. Controllers call this first.
+     */
+    @Transactional(readOnly = true)
+    public void assertCanReceiveStock(UUID itemId, UUID nodeId) {
+        InventoryItem item = loadItem(itemId);
+        assertNodeUsable(item, nodeId);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
+
+    /** One product with its stock rows resolved. */
+    private InventoryItemResponse describe(InventoryItem item) {
+        List<InventoryStock> stocks = stockRepository.findByItemIdAndDeletedAtIsNull(item.getId());
+        return InventoryItemResponse.from(item, sum(stocks), toLocations(stocks));
+    }
+
+    /**
+     * Builds a mapper that resolves stock for a whole page in two queries instead of two per row —
+     * a 20-row listing was otherwise 40 extra round trips.
+     */
+    private java.util.function.Function<InventoryItem, InventoryItemResponse> withStock(List<InventoryItem> items) {
+        List<UUID> ids = items.stream().map(InventoryItem::getId).toList();
+        Map<UUID, List<InventoryStock>> byItem = stockLedger.locationsFor(ids);
+        Map<UUID, String> nodeNames = nodeNamesFor(byItem.values().stream().flatMap(List::stream).toList());
+        return item -> {
+            List<InventoryStock> stocks = byItem.getOrDefault(item.getId(), List.of());
+            return InventoryItemResponse.from(item, sum(stocks), toLocations(stocks, nodeNames));
+        };
+    }
+
+    private BigDecimal sum(List<InventoryStock> stocks) {
+        return stocks.stream().map(InventoryStock::getQuantity).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private List<StockLocationResponse> toLocations(List<InventoryStock> stocks) {
+        return toLocations(stocks, nodeNamesFor(stocks));
+    }
+
+    /** Sorted by name so the same product's locations don't reshuffle between requests. */
+    private List<StockLocationResponse> toLocations(List<InventoryStock> stocks, Map<UUID, String> nodeNames) {
+        return stocks.stream()
+                .map(stock -> StockLocationResponse.builder()
+                        .nodeId(stock.getNodeId())
+                        .nodeName(nodeNames.get(stock.getNodeId()))
+                        .quantity(stock.getQuantity())
+                        .build())
+                .sorted(Comparator.comparing(
+                        StockLocationResponse::getNodeName, Comparator.nullsLast(String::compareTo)))
+                .collect(Collectors.toList());
+    }
+
+    private Map<UUID, String> nodeNamesFor(List<InventoryStock> stocks) {
+        List<UUID> nodeIds = stocks.stream().map(InventoryStock::getNodeId).distinct().toList();
+        if (nodeIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> names = new LinkedHashMap<>();
+        nodeRepository.findAllById(nodeIds).forEach(node -> names.put(node.getId(), node.getName()));
+        return names;
+    }
+
+    /** Creates an empty placement so a product shows up in a folder before any stock arrives. */
+    private void ensureLocation(UUID itemId, UUID nodeId, UUID branchId) {
+        if (stockRepository.findByItemIdAndNodeIdAndDeletedAtIsNull(itemId, nodeId).isPresent()) {
+            return;
+        }
+        InventoryStock stock = InventoryStock.builder()
+                .itemId(itemId)
+                .nodeId(nodeId)
+                .quantity(BigDecimal.ZERO)
+                .build();
+        stock.setBranchId(branchId);
+        stockRepository.save(stock);
+    }
+
+    /**
+     * Bringing stock into a folder is also filing the product there, so the folder's category
+     * rules apply — otherwise a restricted shelf could be filled through the back door.
+     */
+    private void assertNodeUsable(InventoryItem item, UUID nodeId) {
+        assertCategoryAllowed(loadNode(nodeId, item.getBranchId()), item.getCategoryId());
+    }
+
 
     private boolean isSerializedRequest(InventoryItemRequest request) {
         return request.getIsSerialized() != null && request.getIsSerialized();

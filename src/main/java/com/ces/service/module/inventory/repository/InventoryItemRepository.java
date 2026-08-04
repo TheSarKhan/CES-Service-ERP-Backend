@@ -21,8 +21,6 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
 
     boolean existsByBranchIdAndSkuAndDeletedAtIsNullAndIdNot(UUID branchId, String sku, UUID excludeId);
 
-    boolean existsByNodeIdAndDeletedAtIsNull(UUID nodeId);
-
     boolean existsByCategoryIdAndDeletedAtIsNull(UUID categoryId);
 
     Optional<InventoryItem> findByBranchIdAndQrCodeAndDeletedAtIsNull(UUID branchId, String qrCode);
@@ -51,16 +49,6 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
             @Param("branchId") UUID branchId, @Param("today") LocalDate today);
 
     /**
-     * Distinct category ids actually present at a node — lets the frontend know which category
-     * sections to render for an unrestricted node (no {@code categoryIds} allow-list) once each
-     * section fetches its own paginated item page instead of one bulk fetch to group client-side.
-     */
-    @Query(
-            "select distinct i.categoryId from InventoryItem i "
-                    + "where i.branchId = :branchId and i.nodeId = :nodeId and i.deletedAt is null")
-    List<UUID> findDistinctCategoryIdsByNodeId(@Param("branchId") UUID branchId, @Param("nodeId") UUID nodeId);
-
-    /**
      * Filtered + searchable listing. Any of the filter params may be null (ignored when null).
      * {@code searchPattern} matches name / SKU / barcode / any dynamic-field value (case-
      * insensitive) — callers must pre-build it as {@code "%" + search.toLowerCase() + "%"} (or
@@ -71,14 +59,20 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
      * <p>Native (not JPQL) so {@code attributes} — JSONB, mapped as a raw string — can be cast to
      * text and searched directly; this is what powers the "hər cür dəyərlə tapaq" global product
      * search (categoryId and nodeId both null) as well as the per-node/category listings.
+     *
+     * <p>{@code nodeId} filters through {@code inventory_stock} rather than a column on the
+     * product: a product can be held in several folders, and an EXISTS keeps it to one row per
+     * product instead of one per location.
      */
     @Query(
             value = """
-            select * from ces_service.inventory_items i
+            select i.* from ces_service.inventory_items i
             where i.branch_id = :branchId
               and i.deleted_at is null
               and (:categoryId is null or i.category_id = :categoryId)
-              and (:nodeId is null or i.node_id = :nodeId)
+              and (:nodeId is null or exists (
+                    select 1 from ces_service.inventory_stock s
+                    where s.item_id = i.id and s.node_id = :nodeId and s.deleted_at is null))
               and (:searchPattern is null
                    or i.name ilike :searchPattern
                    or i.sku ilike :searchPattern
@@ -90,7 +84,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
             where i.branch_id = :branchId
               and i.deleted_at is null
               and (:categoryId is null or i.category_id = :categoryId)
-              and (:nodeId is null or i.node_id = :nodeId)
+              and (:nodeId is null or exists (
+                    select 1 from ces_service.inventory_stock s
+                    where s.item_id = i.id and s.node_id = :nodeId and s.deleted_at is null))
               and (:searchPattern is null
                    or i.name ilike :searchPattern
                    or i.sku ilike :searchPattern

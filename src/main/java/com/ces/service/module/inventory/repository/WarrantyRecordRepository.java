@@ -24,6 +24,10 @@ import org.springframework.data.repository.query.Param;
  * {@code ? IS NULL} check, which is the same limitation documented on
  * {@link InventoryItemUnitRepository}.
  *
+ * <p>A product row carries no node: the same product can sit in several folders, so its quantity
+ * is the total across them and {@code nodeId} comes back null — the product card lists the places.
+ * A unit row still names its folder, because a unit is in exactly one place.
+ *
  * <p>Ordering is fixed (soonest expiry first, nulls last) instead of coming from {@code Pageable} —
  * the whole point of the screen is "what lapses next", and letting a caller sort by an arbitrary
  * column of a derived table would need the column names leaked into the API.
@@ -61,9 +65,13 @@ public interface WarrantyRecordRepository extends Repository<InventoryItem, UUID
             UNION ALL
             SELECT
                 i.id, 'ITEM', i.id, i.name, i.sku,
-                NULL, NULL, i.node_id, i.barcode, i.qr_code,
+                NULL, NULL, NULL, i.barcode, i.qr_code,
                 i.warranty_start_date, i.warranty_end_date, i.supplier,
-                i.quantity, i.unit
+                COALESCE((
+                    SELECT SUM(s.quantity) FROM ces_service.inventory_stock s
+                    WHERE s.item_id = i.id AND s.deleted_at IS NULL
+                ), 0),
+                i.unit
             FROM ces_service.inventory_items i
             WHERE i.branch_id = :branchId
               AND i.deleted_at IS NULL

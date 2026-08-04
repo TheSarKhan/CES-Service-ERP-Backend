@@ -46,20 +46,27 @@ public class InventoryItemApprovalExecutor implements ApprovalExecutor {
             case UPDATE -> itemService.update(
                     request.getEntityId(), approvalService.readPayload(request, InventoryItemRequest.class));
             case DELETE -> itemService.delete(request.getEntityId());
-            case MOVE -> itemService.move(
-                    request.getEntityId(),
-                    approvalService.readPayload(request, MoveItemRequest.class).getNodeId());
-            case STOCK_IN -> itemService.increaseQuantity(
-                    request.getEntityId(),
-                    approvalService.readPayload(request, StockQuantityRequest.class).getQuantity());
-            case STOCK_OUT -> itemService.decreaseQuantity(
-                    request.getEntityId(),
-                    approvalService.readPayload(request, StockQuantityRequest.class).getQuantity());
+            case MOVE -> {
+                MoveItemRequest move = approvalService.readPayload(request, MoveItemRequest.class);
+                itemService.move(request.getEntityId(), move.getFromNodeId(), move.getToNodeId());
+            }
+            case STOCK_IN -> {
+                StockQuantityRequest stock = approvalService.readPayload(request, StockQuantityRequest.class);
+                itemService.increaseQuantity(
+                        request.getEntityId(), stock.getNodeId(), stock.getQuantity(), stock.getReason());
+            }
+            case STOCK_OUT -> {
+                StockQuantityRequest stock = approvalService.readPayload(request, StockQuantityRequest.class);
+                itemService.decreaseQuantity(
+                        request.getEntityId(), stock.getNodeId(), stock.getQuantity(), stock.getReason());
+            }
+            case STOCK_ADJUST -> {
+                StockQuantityRequest stock = approvalService.readPayload(request, StockQuantityRequest.class);
+                itemService.adjustQuantity(
+                        request.getEntityId(), stock.getNodeId(), stock.getQuantity(), stock.getReason());
+            }
             case WARRANTY_EXTEND -> warrantyService.extendItem(
                     request.getEntityId(), approvalService.readPayload(request, WarrantyExtendRequest.class));
-            case STOCK_ADJUST -> itemService.adjustQuantity(
-                    request.getEntityId(),
-                    approvalService.readPayload(request, StockQuantityRequest.class).getQuantity());
             default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         }
     }

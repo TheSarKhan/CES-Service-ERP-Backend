@@ -11,10 +11,13 @@ import com.ces.service.module.inventory.dto.MarkUnitFailedRequest;
 import com.ces.service.module.inventory.entity.InventoryItem;
 import com.ces.service.module.inventory.entity.InventoryItemUnit;
 import com.ces.service.module.inventory.entity.InventoryNode;
+import com.ces.service.module.inventory.entity.InventoryStock;
 import com.ces.service.module.inventory.enums.InventoryUnitStatus;
+import com.ces.service.module.inventory.enums.StockMovementType;
 import com.ces.service.module.inventory.repository.InventoryItemRepository;
 import com.ces.service.module.inventory.repository.InventoryItemUnitRepository;
 import com.ces.service.module.inventory.repository.InventoryNodeRepository;
+import com.ces.service.module.inventory.repository.InventoryStockRepository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -47,16 +50,22 @@ public class InventoryItemUnitService {
     private final InventoryItemUnitRepository unitRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryNodeRepository nodeRepository;
+    private final InventoryStockRepository stockRepository;
+    private final StockLedger stockLedger;
     private final InventoryAuditLogger auditLogger;
 
     public InventoryItemUnitService(
             InventoryItemUnitRepository unitRepository,
             InventoryItemRepository itemRepository,
             InventoryNodeRepository nodeRepository,
+            InventoryStockRepository stockRepository,
+            StockLedger stockLedger,
             InventoryAuditLogger auditLogger) {
         this.unitRepository = unitRepository;
         this.itemRepository = itemRepository;
         this.nodeRepository = nodeRepository;
+        this.stockRepository = stockRepository;
+        this.stockLedger = stockLedger;
         this.auditLogger = auditLogger;
     }
 
@@ -100,7 +109,7 @@ public class InventoryItemUnitService {
             throw new BusinessException(ErrorCode.ITEM_NOT_SERIALIZED);
         }
 
-        UUID nodeId = request.getNodeId() != null ? request.getNodeId() : item.getNodeId();
+        UUID nodeId = request.getNodeId() != null ? request.getNodeId() : soleLocationOf(item);
         InventoryNode node = nodeRepository
                 .findByIdAndBranchIdAndDeletedAtIsNull(nodeId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory node not found: " + nodeId));
@@ -146,6 +155,7 @@ public class InventoryItemUnitService {
         List<InventoryItemUnitResponse> saved = unitRepository.saveAll(units).stream()
                 .map(u -> InventoryItemUnitResponse.from(u, item.getName(), item.getSku()))
                 .collect(Collectors.toList());
+        syncStockAt(item.getId(), node.getId(), null, StockMovementType.UNIT_IN, "Partiya qeydiyyatı");
         auditLogger.log(
                 "CREATE",
                 "INVENTORY_ITEM_UNIT",
@@ -157,6 +167,7 @@ public class InventoryItemUnitService {
 
     public InventoryItemUnitResponse update(UUID id, InventoryItemUnitUpdateRequest request) {
         InventoryItemUnit unit = loadUnit(id);
+        UUID previousNodeId = unit.getNodeId();
 
         if (request.getNodeId() != null && !request.getNodeId().equals(unit.getNodeId())) {
             InventoryNode node = nodeRepository
@@ -176,6 +187,13 @@ public class InventoryItemUnitService {
         if (request.getNotes() != null) {
             unit.setNotes(request.getNotes());
         }
+
+        // Flushed first so the counts below see the unit at its new node / status.
+        unitRepository.saveAndFlush(unit);
+        if (!previousNodeId.equals(unit.getNodeId())) {
+            syncStockAt(unit.getItemId(), previousNodeId, unit.getId(), StockMovementType.UNIT_OUT, "Vahid köçürüldü");
+        }
+        syncStockAt(unit.getItemId(), unit.getNodeId(), unit.getId(), StockMovementType.UNIT_IN, "Vahid yeniləndi");
 
         InventoryItem item = itemRepository.findById(unit.getItemId()).orElse(null);
         return InventoryItemUnitResponse.from(unit, item == null ? null : item.getName(), item == null ? null : item.getSku());
@@ -207,11 +225,36 @@ public class InventoryItemUnitService {
     public void delete(UUID id) {
         InventoryItemUnit unit = loadUnit(id);
         unit.setDeletedAt(Instant.now());
-        unitRepository.save(unit);
+        unitRepository.saveAndFlush(unit);
+        syncStockAt(unit.getItemId(), unit.getNodeId(), unit.getId(), StockMovementType.UNIT_OUT, "Vahid silindi");
         auditLogger.log("DELETE", "INVENTORY_ITEM_UNIT", unit.getId(), null, null);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
+
+    /**
+     * Rewrites the product's stock at a folder from the units actually sitting there.
+     *
+     * <p>Recomputed rather than incremented: units are the truth for a serialized product, so a
+     * counter that could drift away from them would be a second, quieter answer to the same
+     * question.
+     */
+    private void syncStockAt(UUID itemId, UUID nodeId, UUID unitId, StockMovementType type, String reason) {
+        long present = unitRepository.countPresentAtNode(itemId, nodeId);
+        stockLedger.syncSerialized(itemId, nodeId, present, unitId, type, reason);
+    }
+
+    /**
+     * Where to register units when the caller didn't say. A serialized product usually lives in
+     * one place; when it lives in several there is no safe guess, so the caller must choose.
+     */
+    private UUID soleLocationOf(InventoryItem item) {
+        List<InventoryStock> locations = stockRepository.findByItemIdAndDeletedAtIsNull(item.getId());
+        if (locations.size() != 1) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        return locations.get(0).getNodeId();
+    }
 
     private InventoryItem loadItem(UUID id) {
         UUID branchId = BranchContext.get();

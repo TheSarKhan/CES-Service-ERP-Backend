@@ -23,6 +23,11 @@ import lombok.Setter;
 @Builder
 public class InventoryItemRequest {
 
+    /**
+     * Where the product first goes, and how much of it. Both are read on create only — afterwards
+     * location and quantity belong to the stock rows and change through stock operations, moves
+     * and transfers, never through a product edit.
+     */
     @NotNull
     private UUID nodeId;
 
@@ -45,6 +50,7 @@ public class InventoryItemRequest {
     @Size(max = 50)
     private String unit;
 
+    /** Opening quantity at {@code nodeId}; ignored on update. */
     @NotNull
     @DecimalMin(value = "0", inclusive = true)
     private BigDecimal quantity;

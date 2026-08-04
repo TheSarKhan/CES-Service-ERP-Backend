@@ -8,6 +8,7 @@ import com.ces.service.module.inventory.service.WarrantyClock;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -16,7 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Product view. */
+/** Product view. Location and quantity come from the stock rows, never from the product itself. */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,14 +29,19 @@ public class InventoryItemResponse {
 
     private UUID id;
     private UUID branchId;
-    private UUID nodeId;
     private UUID categoryId;
     private String name;
     private String sku;
     private String barcode;
     private String qrCode;
     private String unit;
-    private BigDecimal quantity;
+
+    /** Sum across every location — the answer to "how many do we have". */
+    private BigDecimal totalQuantity;
+
+    /** Every folder holding this product. Empty once the last location is emptied and removed. */
+    private List<StockLocationResponse> locations;
+
     private BigDecimal purchasePrice;
     private Boolean isSerialized;
     private Map<String, Object> attributes;
@@ -54,18 +60,19 @@ public class InventoryItemResponse {
     private Instant createdAt;
     private Instant updatedAt;
 
-    public static InventoryItemResponse from(InventoryItem item) {
+    public static InventoryItemResponse from(
+            InventoryItem item, BigDecimal totalQuantity, List<StockLocationResponse> locations) {
         return InventoryItemResponse.builder()
                 .id(item.getId())
                 .branchId(item.getBranchId())
-                .nodeId(item.getNodeId())
                 .categoryId(item.getCategoryId())
                 .name(item.getName())
                 .sku(item.getSku())
                 .barcode(item.getBarcode())
                 .qrCode(item.getQrCode())
                 .unit(item.getUnit())
-                .quantity(item.getQuantity())
+                .totalQuantity(totalQuantity == null ? BigDecimal.ZERO : totalQuantity)
+                .locations(locations == null ? List.of() : locations)
                 .purchasePrice(item.getPurchasePrice())
                 .isSerialized(item.getIsSerialized())
                 .attributes(parseAttributes(item.getAttributes()))

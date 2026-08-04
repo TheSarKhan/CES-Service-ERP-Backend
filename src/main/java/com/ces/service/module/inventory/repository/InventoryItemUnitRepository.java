@@ -22,6 +22,15 @@ public interface InventoryItemUnitRepository extends JpaRepository<InventoryItem
 
     long countByItemIdAndStatusAndDeletedAtIsNull(UUID itemId, InventoryUnitStatus status);
 
+    /**
+     * Units physically present at a folder — what the product's stock quantity there means.
+     * Disposed ones are excluded: they were written off and are no longer on the shelf.
+     */
+    @Query("select count(u) from InventoryItemUnit u "
+            + "where u.itemId = :itemId and u.nodeId = :nodeId "
+            + "and u.deletedAt is null and u.status <> 'DISPOSED'")
+    long countPresentAtNode(@Param("itemId") UUID itemId, @Param("nodeId") UUID nodeId);
+
     boolean existsByBranchIdAndSerialNumberAndDeletedAtIsNull(UUID branchId, String serialNumber);
 
     Optional<InventoryItemUnit> findByBranchIdAndQrCodeAndDeletedAtIsNull(UUID branchId, String qrCode);
