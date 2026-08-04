@@ -37,6 +37,8 @@ seçimin niyə edildiyi kodun özündən görünməyəndə burada qalsın.
 | 5 | İnventarizasiya (kor sayım, bir təsdiqlə tətbiq) | ✅ V42 |
 | 6 | Lot / son istifadə tarixi / FEFO | ✅ V43 |
 
+Hamısı bitib. Növbəti addım: SMTP açarını `.env`-ə yazmaq və serverə deploy.
+
 ## Qaydalar (kod yazarkən pozulmamalı)
 
 1. **Qalığa yalnız `StockLedger` toxunur.** Servis birbaşa `inventory_stock`-a yazsa, jurnalda
@@ -47,6 +49,10 @@ seçimin niyə edildiyi kodun özündən görünməyəndə burada qalsın.
    heç vaxt uğur qazanmayacaq sorğu parklamaq məhsulu bloklayır.
 4. **Təsdiq bildirişi şərti render olunan dialoqun içində yaşamamalıdır** — bağlananda unmount olur
    və istifadəçi heç bir cavab görmür.
+5. **Təsdiqi rədd edilə bilən əməliyyat özünü gözləmə vəziyyətinə salırsa**, `ApprovalExecutor.onNotApplied`
+   ilə oradan çıxarılmalıdır. Əks halda qeyd əbədi kilidli qalır (sayım vərəqi belə idi).
+6. **Azərbaycan mətnini JS `toLowerCase()` ilə müqayisə etməyin** — `'SAYILAN'.toLowerCase()`
+   `sayilan` verir, `sayılan` yox. Testlərdə də bu tələyə düşdük.
 
 ## SMTP
 

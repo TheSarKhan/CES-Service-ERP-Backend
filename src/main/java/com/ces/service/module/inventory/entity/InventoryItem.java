@@ -65,6 +65,19 @@ public class InventoryItem extends BaseEntity {
     @Builder.Default
     private Boolean isSerialized = false;
 
+    /**
+     * Batch-tracked. Mutually exclusive with {@code isSerialized} (enforced by a check constraint):
+     * a product is serialized, batch-tracked or plain, because the truth about its quantity has to
+     * live in exactly one place.
+     */
+    @Column(name = "is_lot_tracked", nullable = false)
+    @Builder.Default
+    private Boolean isLotTracked = false;
+
+    /** Days before expiry to start warning; null falls back to the warranty horizon. */
+    @Column(name = "expiry_warning_days")
+    private Integer expiryWarningDays;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attributes", nullable = false, columnDefinition = "jsonb")
     @Builder.Default

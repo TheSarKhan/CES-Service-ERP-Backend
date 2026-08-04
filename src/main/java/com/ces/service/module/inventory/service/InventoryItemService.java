@@ -104,6 +104,9 @@ public class InventoryItemService {
         if (itemRepository.existsByBranchIdAndSkuAndDeletedAtIsNull(branchId, request.getSku())) {
             throw new BusinessException(ErrorCode.DUPLICATE_SKU);
         }
+        if (isSerializedRequest(request) && Boolean.TRUE.equals(request.getIsLotTracked())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
 
         InventoryItem item = InventoryItem.builder()
                 .categoryId(request.getCategoryId())
@@ -113,6 +116,8 @@ public class InventoryItemService {
                 .unit(request.getUnit())
                 .purchasePrice(request.getPurchasePrice())
                 .isSerialized(isSerializedRequest(request))
+                .isLotTracked(Boolean.TRUE.equals(request.getIsLotTracked()))
+                .expiryWarningDays(request.getExpiryWarningDays())
                 .attributes(toJson(request.getAttributes()))
                 .warrantyMonths(request.getWarrantyMonths())
                 .warrantyStartDate(request.getWarrantyStartDate())
@@ -179,6 +184,7 @@ public class InventoryItemService {
         item.setWarrantyMonths(request.getWarrantyMonths());
         item.setWarrantyStartDate(request.getWarrantyStartDate());
         item.setWarrantyEndDate(resolveWarrantyEnd(request, item.getIsSerialized()));
+        item.setExpiryWarningDays(request.getExpiryWarningDays());
         item.setMinQuantity(request.getMinQuantity());
         item.setCriticalQuantity(request.getCriticalQuantity());
         item.setSupplier(request.getSupplier());

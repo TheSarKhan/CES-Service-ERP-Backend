@@ -61,6 +61,12 @@ public class InventoryItemRequest {
 
     private Boolean isSerialized;
 
+    /** Batch tracking; cannot be combined with {@code isSerialized}. */
+    private Boolean isLotTracked;
+
+    @Min(1)
+    private Integer expiryWarningDays;
+
     /** Dynamic field values, keyed by the owning category's field_key. */
     private Map<String, Object> attributes;
 

@@ -46,6 +46,8 @@ public class InventoryItemResponse {
 
     private BigDecimal purchasePrice;
     private Boolean isSerialized;
+    private Boolean isLotTracked;
+    private Integer expiryWarningDays;
     private Map<String, Object> attributes;
     private Integer warrantyMonths;
     private LocalDate warrantyStartDate;
@@ -81,6 +83,8 @@ public class InventoryItemResponse {
                 .locations(locations == null ? List.of() : locations)
                 .purchasePrice(item.getPurchasePrice())
                 .isSerialized(item.getIsSerialized())
+                .isLotTracked(item.getIsLotTracked())
+                .expiryWarningDays(item.getExpiryWarningDays())
                 .attributes(parseAttributes(item.getAttributes()))
                 .warrantyMonths(item.getWarrantyMonths())
                 .warrantyStartDate(item.getWarrantyStartDate())
