@@ -64,6 +64,88 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
      * product: a product can be held in several folders, and an EXISTS keeps it to one row per
      * product instead of one per location.
      */
+    /**
+     * Products at or below a threshold, most urgent first.
+     *
+     * <p>Compared against the total across every folder — see {@code StockClock} for why. Products
+     * with no threshold never appear: nobody asked to be warned about them.
+     */
+    @Query(
+            value = """
+            select i.* from ces_service.inventory_items i
+            where i.branch_id = :branchId
+              and i.deleted_at is null
+              and (
+                (cast(:criticalOnly as boolean) = true
+                 and i.critical_quantity is not null
+                 and coalesce((select sum(s.quantity) from ces_service.inventory_stock s
+                               where s.item_id = i.id and s.deleted_at is null), 0)
+                     <= i.critical_quantity)
+                or
+                (cast(:criticalOnly as boolean) = false
+                 and (
+                   (i.min_quantity is not null
+                    and coalesce((select sum(s.quantity) from ces_service.inventory_stock s
+                                  where s.item_id = i.id and s.deleted_at is null), 0)
+                        <= i.min_quantity)
+                   or
+                   (i.critical_quantity is not null
+                    and coalesce((select sum(s.quantity) from ces_service.inventory_stock s
+                                  where s.item_id = i.id and s.deleted_at is null), 0)
+                        <= i.critical_quantity)))
+              )
+            order by coalesce((select sum(s.quantity) from ces_service.inventory_stock s
+                               where s.item_id = i.id and s.deleted_at is null), 0)
+                     - coalesce(i.critical_quantity, i.min_quantity) asc
+            """,
+            countQuery = """
+            select count(*) from ces_service.inventory_items i
+            where i.branch_id = :branchId
+              and i.deleted_at is null
+              and (
+                (cast(:criticalOnly as boolean) = true
+                 and i.critical_quantity is not null
+                 and coalesce((select sum(s.quantity) from ces_service.inventory_stock s
+                               where s.item_id = i.id and s.deleted_at is null), 0)
+                     <= i.critical_quantity)
+                or
+                (cast(:criticalOnly as boolean) = false
+                 and (
+                   (i.min_quantity is not null
+                    and coalesce((select sum(s.quantity) from ces_service.inventory_stock s
+                                  where s.item_id = i.id and s.deleted_at is null), 0)
+                        <= i.min_quantity)
+                   or
+                   (i.critical_quantity is not null
+                    and coalesce((select sum(s.quantity) from ces_service.inventory_stock s
+                                  where s.item_id = i.id and s.deleted_at is null), 0)
+                        <= i.critical_quantity)))
+              )
+            """,
+            nativeQuery = true)
+    Page<InventoryItem> findLowStock(
+            @Param("branchId") UUID branchId,
+            @Param("criticalOnly") boolean criticalOnly,
+            Pageable pageable);
+
+    /** Same rule, used without a page for the summary counts and the daily digest. */
+    @Query(
+            value = """
+            select
+              count(*) filter (where total <= i.min_quantity and i.min_quantity is not null
+                               and (i.critical_quantity is null or total > i.critical_quantity)) as "low",
+              count(*) filter (where total <= i.critical_quantity and i.critical_quantity is not null) as "critical"
+            from ces_service.inventory_items i
+            cross join lateral (
+              select coalesce(sum(s.quantity), 0) as total from ces_service.inventory_stock s
+              where s.item_id = i.id and s.deleted_at is null
+            ) t
+            where i.branch_id = :branchId and i.deleted_at is null
+              and (i.min_quantity is not null or i.critical_quantity is not null)
+            """,
+            nativeQuery = true)
+    StockLevelCounts countStockLevels(@Param("branchId") UUID branchId);
+
     @Query(
             value = """
             select i.* from ces_service.inventory_items i

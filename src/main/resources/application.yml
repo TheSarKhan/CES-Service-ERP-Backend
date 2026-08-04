@@ -3,6 +3,18 @@
 # Profile-specific overrides live in application-dev.yml / application-prod.yml
 # ============================================================================
 spring:
+  mail:
+    # Boş qaldıqda gündəlik xülasə göndərilmir; anbarın qalan hər şeyi işləyir.
+    host: ${CES_MAIL_HOST:}
+    port: ${CES_MAIL_PORT:587}
+    username: ${CES_MAIL_USERNAME:}
+    password: ${CES_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   application:
     name: ces-service
 
@@ -87,6 +99,9 @@ ces:
     # survives deploys (not wiped by deploy.sh / container rebuilds) in production.
     dir: ${CES_UPLOADS_DIR:./uploads}
     url-prefix: /uploads
+  inventory:
+    # Gündəlik kritik-stok xülasəsi. Server vaxtı ilə.
+    digest-cron: ${CES_INVENTORY_DIGEST_CRON:0 0 8 * * *}
 
 # ── Actuator ────────────────────────────────────────────────────────────────
 management:
@@ -99,6 +114,12 @@ management:
       probes:
         enabled: true
       show-details: when-authorized
+  health:
+    mail:
+      # Mail starter avtomatik SMTP-yə qoşulmağa çalışır və konfiqurasiya boş olanda bütün
+      # tətbiqi «DOWN» göstərir. Email opsionaldır — çatmaması xidmətin işləməməsi demək deyil,
+      # ona görə health nəticəsini şərtləndirməməlidir.
+      enabled: false
 
 # ── SpringDoc / Swagger ─────────────────────────────────────────────────────
 springdoc:

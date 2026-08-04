@@ -117,6 +117,8 @@ public class InventoryItemService {
                 .warrantyMonths(request.getWarrantyMonths())
                 .warrantyStartDate(request.getWarrantyStartDate())
                 .warrantyEndDate(resolveWarrantyEnd(request, isSerializedRequest(request)))
+                .minQuantity(request.getMinQuantity())
+                .criticalQuantity(request.getCriticalQuantity())
                 .supplier(request.getSupplier())
                 .notes(request.getNotes())
                 .isActive(request.getIsActive() == null ? Boolean.TRUE : request.getIsActive())
@@ -177,6 +179,8 @@ public class InventoryItemService {
         item.setWarrantyMonths(request.getWarrantyMonths());
         item.setWarrantyStartDate(request.getWarrantyStartDate());
         item.setWarrantyEndDate(resolveWarrantyEnd(request, item.getIsSerialized()));
+        item.setMinQuantity(request.getMinQuantity());
+        item.setCriticalQuantity(request.getCriticalQuantity());
         item.setSupplier(request.getSupplier());
         item.setNotes(request.getNotes());
         if (request.getIsActive() != null) {
@@ -288,6 +292,11 @@ public class InventoryItemService {
      * Builds a mapper that resolves stock for a whole page in two queries instead of two per row —
      * a 20-row listing was otherwise 40 extra round trips.
      */
+    public java.util.function.Function<InventoryItem, InventoryItemResponse> stockDecorator(
+            List<InventoryItem> items) {
+        return withStock(items);
+    }
+
     private java.util.function.Function<InventoryItem, InventoryItemResponse> withStock(List<InventoryItem> items) {
         List<UUID> ids = items.stream().map(InventoryItem::getId).toList();
         Map<UUID, List<InventoryStock>> byItem = stockLedger.locationsFor(ids);

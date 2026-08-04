@@ -3,7 +3,9 @@ package com.ces.service.module.inventory.dto;
 import com.ces.service.module.inventory.entity.InventoryItem;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ces.service.module.inventory.enums.StockLevel;
 import com.ces.service.module.inventory.enums.WarrantyStatus;
+import com.ces.service.module.inventory.service.StockClock;
 import com.ces.service.module.inventory.service.WarrantyClock;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -53,6 +55,10 @@ public class InventoryItemResponse {
      * per-unit, so a single status here would contradict the units underneath it.
      */
     private WarrantyStatus warrantyStatus;
+    private BigDecimal minQuantity;
+    private BigDecimal criticalQuantity;
+    /** Derived from the total against the thresholds — the same rule the badge and filter use. */
+    private StockLevel stockLevel;
     /** Who a warranty claim on this product would be addressed to. */
     private String supplier;
     private String notes;
@@ -83,6 +89,10 @@ public class InventoryItemResponse {
                         Boolean.TRUE.equals(item.getIsSerialized())
                                 ? WarrantyStatus.NONE
                                 : WarrantyClock.statusOf(item.getWarrantyEndDate()))
+                .minQuantity(item.getMinQuantity())
+                .criticalQuantity(item.getCriticalQuantity())
+                .stockLevel(StockClock.levelOf(
+                        totalQuantity, item.getMinQuantity(), item.getCriticalQuantity()))
                 .supplier(item.getSupplier())
                 .notes(item.getNotes())
                 .isActive(item.getIsActive())

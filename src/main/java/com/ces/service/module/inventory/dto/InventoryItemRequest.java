@@ -73,6 +73,14 @@ public class InventoryItemRequest {
     /** Ignored for serialized items — their warranty is tracked per unit. */
     private LocalDate warrantyEndDate;
 
+    /** Reorder point for the total across every folder; null disables the warning. */
+    @DecimalMin(value = "0", inclusive = true)
+    private BigDecimal minQuantity;
+
+    /** Critical level; should sit at or below {@code minQuantity}. */
+    @DecimalMin(value = "0", inclusive = true)
+    private BigDecimal criticalQuantity;
+
     /** Supplier the warranty claim would be addressed to. */
     @Size(max = 255)
     private String supplier;

@@ -89,6 +89,17 @@ public class InventoryItem extends BaseEntity {
     private LocalDate warrantyEndDate;
 
     /**
+     * Reorder point, compared against the total across every folder. Null means nobody tracks a
+     * level for this product, so it never raises a warning.
+     */
+    @Column(name = "min_quantity", precision = 12, scale = 3)
+    private BigDecimal minQuantity;
+
+    /** Below this, work stops. Meant to sit under {@code minQuantity}. */
+    @Column(name = "critical_quantity", precision = 12, scale = 3)
+    private BigDecimal criticalQuantity;
+
+    /**
      * Who the warranty claim goes to. A real column rather than a dynamic category attribute: it's
      * filtered and grouped by on the warranty screen, and JSONB can do neither cheaply.
      */
