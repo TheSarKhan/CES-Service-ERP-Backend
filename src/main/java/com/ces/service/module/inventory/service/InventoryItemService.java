@@ -9,11 +9,14 @@ import com.ces.service.module.inventory.dto.InventoryItemResponse;
 import com.ces.service.module.inventory.dto.StockLocationResponse;
 import com.ces.service.module.inventory.entity.InventoryCategory;
 import com.ces.service.module.inventory.entity.InventoryItem;
+import com.ces.service.module.inventory.entity.InventoryLot;
 import com.ces.service.module.inventory.entity.InventoryNode;
 import com.ces.service.module.inventory.entity.InventoryStock;
 import com.ces.service.module.inventory.enums.StockMovementType;
 import com.ces.service.module.inventory.repository.InventoryCategoryRepository;
 import com.ces.service.module.inventory.repository.InventoryItemRepository;
+import com.ces.service.module.inventory.repository.InventoryItemUnitRepository;
+import com.ces.service.module.inventory.repository.InventoryLotRepository;
 import com.ces.service.module.inventory.repository.InventoryNodeRepository;
 import com.ces.service.module.inventory.repository.InventoryStockRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,6 +59,10 @@ public class InventoryItemService {
     private final InventoryNodeRepository nodeRepository;
     private final InventoryCategoryRepository categoryRepository;
     private final InventoryStockRepository stockRepository;
+    // Repositories rather than the lot/unit services: this only needs to know whether anything
+    // would be stranded by a mode change, and going through the services would be a cycle.
+    private final InventoryLotRepository lotRepository;
+    private final InventoryItemUnitRepository unitRepository;
     private final StockLedger stockLedger;
     private final InventoryAuditLogger auditLogger;
 
@@ -64,12 +71,16 @@ public class InventoryItemService {
             InventoryNodeRepository nodeRepository,
             InventoryCategoryRepository categoryRepository,
             InventoryStockRepository stockRepository,
+            InventoryLotRepository lotRepository,
+            InventoryItemUnitRepository unitRepository,
             StockLedger stockLedger,
             InventoryAuditLogger auditLogger) {
         this.itemRepository = itemRepository;
         this.nodeRepository = nodeRepository;
         this.categoryRepository = categoryRepository;
         this.stockRepository = stockRepository;
+        this.lotRepository = lotRepository;
+        this.unitRepository = unitRepository;
         this.stockLedger = stockLedger;
         this.auditLogger = auditLogger;
     }
@@ -192,8 +203,9 @@ public class InventoryItemService {
         if (request.getIsActive() != null) {
             item.setIsActive(request.getIsActive());
         }
-        // Location, quantity and isSerialized are intentionally untouched: they change only
-        // through stock operations, moves and unit-level operations.
+        applyTrackingMode(item, request);
+        // Location and quantity are intentionally untouched: they change only through stock
+        // operations, moves and unit-level operations.
         return describe(item);
     }
 
@@ -295,6 +307,93 @@ public class InventoryItemService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Inventory stock not found for node: " + fromNodeId));
         resolveMoveAmount(item, source.getQuantity(), quantity);
+    }
+
+    /**
+     * Switches a product between plain, serialized and batch-tracked.
+     *
+     * <p>Locked once there is anything to strand: change the mode with batches or units already
+     * recorded and those rows survive against a product that no longer admits they exist. With none
+     * of either, nothing can be orphaned and the switch is just a decision about how counting works
+     * from here on.
+     *
+     * <p>Turning batch tracking on has one more obligation. The stock already on the shelves is
+     * real, and physically it *is* some batch — so it has to be named, or the product would report
+     * a total that its batches do not add up to and FEFO would route around everything actually
+     * held. The opening batch is written to mirror each folder's balance exactly, with no ledger
+     * movement: nothing arrives, the same goods are simply now described in more detail.
+     */
+    /**
+     * Checks a tracking-mode change before the controller parks it.
+     *
+     * <p>Same reasoning as {@link #assertMovable}: a pending request locks the product, so a switch
+     * that could never be applied has to be refused while the requester is still on the screen
+     * rather than discovered by whoever opens the approval queue.
+     */
+    @Transactional(readOnly = true)
+    public void assertTrackingChangeAllowed(UUID id, InventoryItemRequest request) {
+        evaluateTrackingMode(loadItem(id), request, false);
+    }
+
+    private void applyTrackingMode(InventoryItem item, InventoryItemRequest request) {
+        evaluateTrackingMode(item, request, true);
+    }
+
+    private void evaluateTrackingMode(InventoryItem item, InventoryItemRequest request, boolean apply) {
+        boolean wantsSerialized = Boolean.TRUE.equals(request.getIsSerialized());
+        boolean wantsLots = Boolean.TRUE.equals(request.getIsLotTracked());
+        if (wantsSerialized && wantsLots) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        boolean isSerialized = Boolean.TRUE.equals(item.getIsSerialized());
+        boolean isLotTracked = Boolean.TRUE.equals(item.getIsLotTracked());
+        if (wantsSerialized == isSerialized && wantsLots == isLotTracked) {
+            return;
+        }
+
+        if (!lotRepository.findByItemIdAndDeletedAtIsNull(item.getId()).isEmpty()
+                || !unitRepository.findByItemIdAndDeletedAtIsNullOrderByCreatedAtDesc(item.getId()).isEmpty()) {
+            throw new BusinessException(ErrorCode.TRACKING_MODE_LOCKED);
+        }
+
+        if (apply) {
+            item.setIsSerialized(wantsSerialized);
+            item.setIsLotTracked(wantsLots);
+        }
+        if (!wantsLots) {
+            return;
+        }
+
+        List<InventoryStock> held = stockRepository.findByItemIdAndDeletedAtIsNull(item.getId()).stream()
+                .filter(stock -> stock.getQuantity().signum() > 0)
+                .toList();
+        if (held.isEmpty()) {
+            return;
+        }
+        String lotNumber = request.getOpeningLotNumber() == null
+                ? null
+                : request.getOpeningLotNumber().trim();
+        if (lotNumber == null || lotNumber.isEmpty()) {
+            throw new BusinessException(ErrorCode.OPENING_LOT_REQUIRED);
+        }
+        if (!apply) {
+            return;
+        }
+        for (InventoryStock stock : held) {
+            InventoryLot lot = InventoryLot.builder()
+                    .itemId(item.getId())
+                    .nodeId(stock.getNodeId())
+                    .lotNumber(lotNumber)
+                    .quantity(stock.getQuantity())
+                    .expiryDate(request.getOpeningLotExpiryDate())
+                    .receivedDate(LocalDate.now())
+                    .notes("Partiya izlənməsi açılarkən mövcud qalıqdan yaradılıb")
+                    .build();
+            lot.setBranchId(item.getBranchId());
+            lotRepository.save(lot);
+        }
+        auditLogger.log("BUSINESS", "INVENTORY_ITEM", item.getId(), null,
+                Map.of("isLotTracked", true, "openingLot", lotNumber, "folders", held.size()));
     }
 
     /** Stock-in at one folder ("Miqdarı artır"). */

@@ -67,6 +67,12 @@ public enum ErrorCode {
     SYSTEM_FIELD_PROTECTED(HttpStatus.UNPROCESSABLE_ENTITY, "System fields are auto-created for every category and cannot be removed"),
     ENTITY_PENDING_APPROVAL(HttpStatus.UNPROCESSABLE_ENTITY, "This record already has a change waiting for approval"),
     LOT_NOT_TRACKED(HttpStatus.UNPROCESSABLE_ENTITY, "This product does not track batches"),
+    TRACKING_MODE_LOCKED(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "Tracking mode cannot change once batches or serialized units exist"),
+    OPENING_LOT_REQUIRED(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "Switching to batch tracking needs a batch number for the stock already held"),
     APPROVAL_SELF_DECISION(HttpStatus.UNPROCESSABLE_ENTITY, "You cannot approve or reject your own request"),
     APPROVAL_ALREADY_DECIDED(HttpStatus.UNPROCESSABLE_ENTITY, "This request has already been decided"),
     INVALID_FILE_TYPE(HttpStatus.UNPROCESSABLE_ENTITY, "Only JPEG, PNG, WEBP and GIF images are allowed"),

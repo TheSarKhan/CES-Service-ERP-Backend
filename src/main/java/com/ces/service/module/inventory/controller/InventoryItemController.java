@@ -95,6 +95,7 @@ public class InventoryItemController {
     @PreAuthorize("hasAuthority('WH_MANAGE')")
     public ResponseEntity<ApiResponse<ApprovalRequestResponse>> update(
             @PathVariable UUID id, @Valid @RequestBody InventoryItemRequest request) {
+        itemService.assertTrackingChangeAllowed(id, request);
         return accepted(submit(id, ApprovalOperation.UPDATE, request));
     }
 

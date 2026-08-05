@@ -42,7 +42,11 @@ public class InventoryItemRequest {
     @Size(max = 100)
     private String sku;
 
-    @NotBlank
+    /**
+     * Optional. The entity column is nullable and most real products arrive without one — this was
+     * {@code @NotBlank}, which made every such product impossible to edit at all: any save failed
+     * validation on a field the record had never carried.
+     */
     @Size(max = 255)
     private String barcode;
 
@@ -95,4 +99,17 @@ public class InventoryItemRequest {
     private String notes;
 
     private Boolean isActive;
+
+    /**
+     * Which batch the stock already on the shelf belongs to.
+     *
+     * <p>Read only when an existing product is switched to batch tracking. The balance is real and
+     * physically *is* some batch, so it has to be named: without this the product would report a
+     * total its batches do not add up to, and every FEFO suggestion would ignore what is actually
+     * there.
+     */
+    @Size(max = 100)
+    private String openingLotNumber;
+
+    private LocalDate openingLotExpiryDate;
 }
