@@ -8,6 +8,7 @@ import com.ces.service.module.approval.entity.ApprovalStatus;
 import com.ces.service.module.approval.service.ApprovalService;
 import jakarta.validation.Valid;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -39,8 +40,10 @@ public class ApprovalController {
     public ResponseEntity<ApiResponse<PageResponse<ApprovalRequestResponse>>> list(
             @RequestParam(required = false) ApprovalStatus status,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = toPageable(page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "requestedAt") String sort,
+            @RequestParam(defaultValue = "desc") String dir) {
+        Pageable pageable = toPageable(page, size, sort, dir);
         Page<ApprovalRequestResponse> result = approvalService.list(status, pageable);
         PageResponse<ApprovalRequestResponse> body = PageResponse.of(result);
         return ResponseEntity.ok(ApiResponse.ok(body, body.meta()));
@@ -84,9 +87,22 @@ public class ApprovalController {
         return request == null ? null : request.getNote();
     }
 
-    private Pageable toPageable(int page, int size) {
+    /**
+     * Columns the table is allowed to order by.
+     *
+     * <p>A whitelist rather than passing the parameter through: the sort string reaches the query
+     * as an identifier, so anything the client can name is something the client can ask the
+     * database about. Unknown values fall back to the default instead of erroring — a stale
+     * bookmark should show the list, not a stack trace.
+     */
+    private static final Set<String> SORTABLE =
+            Set.of("requestedAt", "decidedAt", "status", "operation", "entityType", "entityLabel");
+
+    private Pageable toPageable(int page, int size, String sort, String dir) {
         int pageIndex = Math.max(page, 1) - 1;
         int pageSize = Math.min(Math.max(size, 1), 100);
-        return PageRequest.of(pageIndex, pageSize, Sort.by(Sort.Direction.DESC, "requestedAt"));
+        String field = SORTABLE.contains(sort) ? sort : "requestedAt";
+        Sort.Direction direction = "asc".equalsIgnoreCase(dir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        return PageRequest.of(pageIndex, pageSize, Sort.by(direction, field));
     }
 }

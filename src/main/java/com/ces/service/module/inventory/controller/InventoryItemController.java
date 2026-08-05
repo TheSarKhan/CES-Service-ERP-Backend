@@ -13,6 +13,7 @@ import com.ces.service.module.inventory.dto.StockQuantityRequest;
 import com.ces.service.module.inventory.service.InventoryItemService;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -145,10 +146,26 @@ public class InventoryItemController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.ok(request));
     }
 
+    /**
+     * Columns the product table may order by, as real {@code inventory_items} column names.
+     *
+     * <p>The whitelist earns its keep here more than anywhere else: {@code search()} is a native
+     * query — it has to be, to reach inside the attributes JSONB — so the sort string is spliced
+     * into SQL as an identifier rather than resolved against a mapped entity. Now that column
+     * headers send this value, it is client-controlled input reaching the query planner.
+     *
+     * <p>Quantity is absent on purpose: stock lives in {@code inventory_stock}, one row per folder,
+     * so there is no column here to order by and a header that pretended otherwise would sort by
+     * nothing.
+     */
+    private static final Set<String> SORTABLE =
+            Set.of("created_at", "name", "sku", "barcode", "unit", "purchase_price", "supplier");
+
     private Pageable toPageable(int page, int size, String sort, String dir) {
         int pageIndex = Math.max(page, 1) - 1;
         int pageSize = Math.min(Math.max(size, 1), 100);
         Sort.Direction direction = "asc".equalsIgnoreCase(dir) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        return PageRequest.of(pageIndex, pageSize, Sort.by(direction, sort));
+        String field = SORTABLE.contains(sort) ? sort : "created_at";
+        return PageRequest.of(pageIndex, pageSize, Sort.by(direction, field));
     }
 }

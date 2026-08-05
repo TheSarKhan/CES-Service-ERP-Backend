@@ -29,6 +29,7 @@ import com.ces.service.module.inventory.service.WarrantyService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -125,17 +126,29 @@ public class WarrantyController {
 
     // ── Claims ───────────────────────────────────────────────────────────
 
+    /**
+     * Columns the claims table may order by. A whitelist, not a pass-through: the value reaches the
+     * query as an identifier, and an unknown one falls back to the default rather than erroring so
+     * a stale bookmark still shows the list.
+     */
+    private static final Set<String> CLAIM_SORTABLE =
+            Set.of("createdAt", "submittedAt", "decidedAt", "status", "supplier", "claimNumber");
+
     @GetMapping("/claims")
     @PreAuthorize("hasAuthority('WH_READ')")
     public ResponseEntity<ApiResponse<PageResponse<WarrantyClaimResponse>>> claims(
             @RequestParam(required = false) WarrantyClaimStatus status,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @RequestParam(defaultValue = "desc") String dir) {
         Pageable pageable = PageRequest.of(
                 Math.max(page, 1) - 1,
                 Math.min(Math.max(size, 1), 100),
-                Sort.by(Sort.Direction.DESC, "createdAt"));
+                Sort.by(
+                        "asc".equalsIgnoreCase(dir) ? Sort.Direction.ASC : Sort.Direction.DESC,
+                        CLAIM_SORTABLE.contains(sort) ? sort : "createdAt"));
         PageResponse<WarrantyClaimResponse> body =
                 PageResponse.of(warrantyService.listClaims(status, search, pageable));
         return ResponseEntity.ok(ApiResponse.ok(body, body.meta()));
