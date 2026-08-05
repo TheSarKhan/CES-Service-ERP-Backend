@@ -78,7 +78,12 @@ public class StockDigestMailer {
 
     private void sendFor(JavaMailSender sender, InventorySettings settings, List<String> recipients) {
         List<InventoryItemResponse> items = alertService
-                .listFor(settings.getBranchId(), false, PageRequest.of(0, MAX_LISTED + 1))
+                .listFor(
+                        settings.getBranchId(),
+                        false,
+                        // The listing query no longer orders itself, so the digest has to ask for
+                        // the order it wants: worst first, same as the screen.
+                        PageRequest.of(0, MAX_LISTED + 1, StockAlertService.SHORTFALL_FIRST))
                 .getContent();
         if (items.isEmpty()) {
             return;

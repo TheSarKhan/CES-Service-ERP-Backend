@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,6 +65,20 @@ public class StockAlertService {
     public Page<InventoryItemResponse> listFor(UUID branchId, boolean criticalOnly, Pageable pageable) {
         return page(branchId, criticalOnly, pageable);
     }
+
+    /**
+     * Worst shortfall first — how far the total has fallen past the line that matters for that
+     * product, so the one closest to stopping work is on top.
+     *
+     * <p>{@code JpaSort.unsafe} because this is an expression rather than a column, and it lives
+     * here rather than inside the query's own ORDER BY: Spring appends the Pageable's sort after
+     * the query's, so a hardcoded one would quietly outrank whichever header the user clicked.
+     */
+    public static final Sort SHORTFALL_FIRST = JpaSort.unsafe(
+            Sort.Direction.ASC,
+            "(coalesce((select sum(s.quantity) from ces_service.inventory_stock s"
+                    + " where s.item_id = i.id and s.deleted_at is null), 0)"
+                    + " - coalesce(i.critical_quantity, i.min_quantity))");
 
     private Page<InventoryItemResponse> page(UUID branchId, boolean criticalOnly, Pageable pageable) {
         Page<InventoryItem> page = itemRepository.findLowStock(branchId, criticalOnly, pageable);

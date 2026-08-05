@@ -9,9 +9,11 @@ import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -75,14 +77,26 @@ public class InventoryLotController {
     }
 
     /** Batches running out of time, soonest first. */
+    /** Columns the batch listing may be ordered by; anything else falls back to soonest-first. */
+    private static final Set<String> SORTABLE =
+            Set.of("expiryDate", "receivedDate", "lotNumber", "quantity");
+
     @GetMapping("/lots/expiring")
     @PreAuthorize("hasAuthority('WH_READ')")
     public ResponseEntity<ApiResponse<PageResponse<InventoryLotResponse>>> expiring(
             @RequestParam(defaultValue = "30") int withinDays,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "expiryDate") String sort,
+            @RequestParam(defaultValue = "asc") String dir) {
         Page<InventoryLotResponse> result = lotService.expiring(
-                withinDays, PageRequest.of(Math.max(page, 1) - 1, Math.min(Math.max(size, 1), 100)));
+                withinDays,
+                PageRequest.of(
+                        Math.max(page, 1) - 1,
+                        Math.min(Math.max(size, 1), 100),
+                        Sort.by(
+                                "desc".equalsIgnoreCase(dir) ? Sort.Direction.DESC : Sort.Direction.ASC,
+                                SORTABLE.contains(sort) ? sort : "expiryDate")));
         PageResponse<InventoryLotResponse> body = PageResponse.of(result);
         return ResponseEntity.ok(ApiResponse.ok(body, body.meta()));
     }

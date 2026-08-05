@@ -125,9 +125,7 @@ public interface WarrantyRecordRepository extends Repository<InventoryItem, UUID
                             + " r.supplier AS \"supplier\", r.quantity AS \"quantity\","
                             + " r.unit AS \"unit\""
                             + " FROM (" + UNION_SOURCE + ") r "
-                            + FILTERS
-                            + " ORDER BY r.warranty_end_date ASC NULLS LAST, r.item_name ASC,"
-                            + " r.serial_number ASC NULLS FIRST",
+                            + FILTERS,
             countQuery = "SELECT count(*) FROM (" + UNION_SOURCE + ") r " + FILTERS)
     Page<WarrantyRecordRow> search(
             @Param("branchId") UUID branchId,

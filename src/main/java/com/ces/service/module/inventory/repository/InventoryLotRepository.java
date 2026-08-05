@@ -34,11 +34,16 @@ public interface InventoryLotRepository extends JpaRepository<InventoryLot, UUID
             + "order by case when l.expiryDate is null then 1 else 0 end, l.expiryDate asc, l.receivedDate asc")
     List<InventoryLot> findFefoOrder(@Param("itemId") UUID itemId, @Param("nodeId") UUID nodeId);
 
-    /** Batches running out of time, soonest first. */
+    /**
+     * Batches running out of time.
+     *
+     * <p>No ORDER BY here on purpose: Spring appends the Pageable's sort *after* the query's own,
+     * so a hardcoded one would silently outrank whatever column the user clicked. The caller
+     * supplies the order, defaulting to soonest first.
+     */
     @Query("select l from InventoryLot l "
             + "where l.branchId = :branchId and l.deletedAt is null and l.quantity > 0 "
-            + "and l.expiryDate is not null and l.expiryDate <= :horizon "
-            + "order by l.expiryDate asc")
+            + "and l.expiryDate is not null and l.expiryDate <= :horizon")
     Page<InventoryLot> findExpiring(
             @Param("branchId") UUID branchId, @Param("horizon") LocalDate horizon, Pageable pageable);
 

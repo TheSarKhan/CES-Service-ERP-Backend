@@ -29,12 +29,14 @@ import com.ces.service.module.inventory.service.WarrantyService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -85,8 +87,8 @@ public class WarrantyController {
     /**
      * The warranty search itself — serialized units and non-serialized products together.
      *
-     * <p>Results are always ordered soonest-expiry-first, so there is no {@code sort} parameter:
-     * the screen's job is "what lapses next", and a caller-chosen sort would only hide that.
+     * <p>Defaults to soonest-expiry-first — the screen's job is "what lapses next" — but the
+     * column headers can override it.
      */
     @GetMapping("/records")
     @PreAuthorize("hasAuthority('WH_READ')")
@@ -100,7 +102,9 @@ public class WarrantyController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endTo,
             @RequestParam(required = false) Integer withinDays,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "asc") String dir) {
         WarrantyRecordSearchCriteria criteria = WarrantyRecordSearchCriteria.builder()
                 .search(search)
                 .recordType(recordType)
@@ -111,10 +115,40 @@ public class WarrantyController {
                 .endTo(endTo)
                 .withinDays(withinDays)
                 .build();
-        // Unsorted on purpose — the ordering lives in the query; see WarrantyRecordRepository.
-        Page<WarrantyRecordResponse> result = warrantyService.search(criteria, toPageable(page, size));
+        Page<WarrantyRecordResponse> result =
+                warrantyService.search(criteria, recordsPageable(page, size, sort, dir));
         PageResponse<WarrantyRecordResponse> body = PageResponse.of(result);
         return ResponseEntity.ok(ApiResponse.ok(body, body.meta()));
+    }
+
+    /**
+     * UI column name to the SQL it orders by. The listing is a native query over a UNION subquery,
+     * so these are the subquery's real column names and never anything the caller typed.
+     */
+    private static final Map<String, String> RECORD_SORT_COLUMNS = Map.of(
+            "itemName", "r.item_name",
+            "supplier", "r.supplier",
+            "warrantyEndDate", "r.warranty_end_date",
+            "unitStatus", "r.unit_status",
+            "quantity", "r.quantity");
+
+    /**
+     * Soonest expiry first, undated rows last.
+     *
+     * <p>{@code (col IS NULL)} rather than NULLS LAST because a Sort appends its own direction, and
+     * an expression already carrying "NULLS LAST" would come out as invalid SQL. Postgres orders
+     * false before true, so ascending on the null-test puts dated rows first either way.
+     */
+    private static final Sort RECORDS_DEFAULT_SORT = JpaSort.unsafe(
+            Sort.Direction.ASC, "(r.warranty_end_date IS NULL)", "r.warranty_end_date", "r.item_name");
+
+    private Pageable recordsPageable(int page, int size, String sort, String dir) {
+        String column = sort == null ? null : RECORD_SORT_COLUMNS.get(sort);
+        Sort order = column == null
+                ? RECORDS_DEFAULT_SORT
+                : JpaSort.unsafe(
+                        "desc".equalsIgnoreCase(dir) ? Sort.Direction.DESC : Sort.Direction.ASC, column);
+        return PageRequest.of(Math.max(page, 1) - 1, Math.min(Math.max(size, 1), 100), order);
     }
 
     /** Suppliers in use, for the filter dropdown. */

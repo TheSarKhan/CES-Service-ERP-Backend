@@ -94,9 +94,6 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
                                   where s.item_id = i.id and s.deleted_at is null), 0)
                         <= i.critical_quantity)))
               )
-            order by coalesce((select sum(s.quantity) from ces_service.inventory_stock s
-                               where s.item_id = i.id and s.deleted_at is null), 0)
-                     - coalesce(i.critical_quantity, i.min_quantity) asc
             """,
             countQuery = """
             select count(*) from ces_service.inventory_items i
