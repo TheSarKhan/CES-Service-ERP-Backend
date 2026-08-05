@@ -25,10 +25,15 @@ public class StockAlertService {
 
     private final InventoryItemRepository itemRepository;
     private final InventoryItemService itemService;
+    private final InventoryLotService lotService;
 
-    public StockAlertService(InventoryItemRepository itemRepository, InventoryItemService itemService) {
+    public StockAlertService(
+            InventoryItemRepository itemRepository,
+            InventoryItemService itemService,
+            InventoryLotService lotService) {
         this.itemRepository = itemRepository;
         this.itemService = itemService;
+        this.lotService = lotService;
     }
 
     public StockAlertSummaryResponse summary() {
@@ -36,13 +41,17 @@ public class StockAlertService {
     }
 
     public StockAlertSummaryResponse summaryFor(UUID branchId) {
+        // [expiring soon, already expired] — the batch side of "needs attention today".
+        long[] lots = lotService.expirySummaryFor(branchId);
         StockLevelCounts counts = itemRepository.countStockLevels(branchId);
         if (counts == null) {
-            return StockAlertSummaryResponse.of(0, 0);
+            return StockAlertSummaryResponse.of(0, 0, lots[0], lots[1]);
         }
         return StockAlertSummaryResponse.of(
                 counts.getLow() == null ? 0 : counts.getLow(),
-                counts.getCritical() == null ? 0 : counts.getCritical());
+                counts.getCritical() == null ? 0 : counts.getCritical(),
+                lots[0],
+                lots[1]);
     }
 
     /** Low-stock listing, worst shortfall first. */

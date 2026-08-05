@@ -40,6 +40,17 @@ public class InventoryLotService {
     /** Same horizon the warranty band uses, unless the product sets its own. */
     private static final int DEFAULT_WARNING_DAYS = WarrantyClock.EXPIRING_SOON_DAYS;
 
+    /**
+     * How far ahead the warehouse attention band looks.
+     *
+     * <p>Wider than {@link #DEFAULT_WARNING_DAYS} on purpose, and it has to match the listing's
+     * default horizon: a count you click into that shows a different number of rows is worse than
+     * no count at all. Thirty days is the right threshold for flagging one batch as urgent, but too
+     * short for the question the band asks — what should I plan around this quarter — because
+     * reordering oil takes longer than the warning would give.
+     */
+    private static final int BAND_HORIZON_DAYS = 90;
+
     private final InventoryLotRepository lotRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryNodeRepository nodeRepository;
@@ -121,13 +132,18 @@ public class InventoryLotService {
                 DEFAULT_WARNING_DAYS));
     }
 
-    /** Counts behind the expiry band. */
+    /** Counts behind the warehouse attention band: {@code [expiring within the horizon, expired]}. */
     @Transactional(readOnly = true)
     public long[] expirySummary() {
-        UUID branchId = BranchContext.get();
+        return expirySummaryFor(BranchContext.get());
+    }
+
+    /** Same counts without a request context — the scheduled digest runs outside one. */
+    @Transactional(readOnly = true)
+    public long[] expirySummaryFor(UUID branchId) {
         LocalDate today = LocalDate.now();
         return new long[] {
-            lotRepository.countExpiringSoon(branchId, today, today.plusDays(DEFAULT_WARNING_DAYS)),
+            lotRepository.countExpiringSoon(branchId, today, today.plusDays(BAND_HORIZON_DAYS)),
             lotRepository.countExpired(branchId, today),
         };
     }

@@ -37,6 +37,31 @@ seçimin niyə edildiyi kodun özündən görünməyəndə burada qalsın.
 
 Növbəti addım: SMTP açarını `.env`-ə yazmaq və serverə deploy.
 
+## Partiyalar niyə Zəmanətdən çıxarıldı
+
+Əvvəlcə «Bitmək üzrə partiyalar» Zəmanət səhifəsində üçüncü tab idi. Məntiq belə idi: hər ikisi
+*«bir şey tarixə görə yararsız olur»* deyir.
+
+İstifadəçi üçün işləmədi — və haqlı idi. **«Zəmanət» başlığı yağın xarab olmasını vəd etmir.**
+Başlıq nə deyirsə, içində o olmalıdır.
+
+İndi Anbar səhifəsindəki diqqət zolağındadır, «Kritik həddən aşağı» və «Minimum həddən aşağı»
+kartlarının yanında. Üçü də eyni cinsdən siqnaldır: *bu gün nəyəsə baxmaq lazımdır*.
+
+İki detal:
+
+- Zolağın saydığı üfüq (`BAND_HORIZON_DAYS = 90`) siyahının standart üfüqü ilə **eyni olmalıdır**.
+  Kliklədiyin rəqəmlə açılan siyahının sayı fərqlənirsə, rəqəm heç olmamaqdan pisdir.
+  30 gün bir partiyanı «təcili» işarələmək üçün doğrudur, amma zolağın verdiyi sual başqadır —
+  *bu rüb nəyi planlamalıyam* — və yağ sifarişi 30 gündən uzun çəkir.
+- Partiya sətrində `WarrantyStatusBadge` istifadə olunurdu və mühərrik yağının üzərinə
+  **«Zəmanətli»** yazırdı. Ayrıca `ExpiryStatusBadge` yazıldı: *Yararlı / Bitməkdə / Vaxtı keçib*.
+  Eyni rənglər, düzgün sözlər.
+
+Partiya sayları `StockAlertSummaryResponse`-a əlavə edildi, amma `total`-a **qatılmadı** — o rəqəm
+yan menyudakı nişanı idarə edir və məhsul sayır; partiyaları səssizcə ora qatmaq ekranda artıq
+duran bir rəqəmin mənasını dəyişərdi.
+
 ## İnventarizasiya niyə atıldı
 
 Vərəq mexanizmi kor sayım idi: sayan adam sistem rəqəmini görmür, bütöv qovluq bir sessiyada
