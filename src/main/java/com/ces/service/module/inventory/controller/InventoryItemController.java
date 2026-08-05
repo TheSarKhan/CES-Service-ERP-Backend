@@ -19,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -154,18 +155,30 @@ public class InventoryItemController {
      * into SQL as an identifier rather than resolved against a mapped entity. Now that column
      * headers send this value, it is client-controlled input reaching the query planner.
      *
-     * <p>Quantity is absent on purpose: stock lives in {@code inventory_stock}, one row per folder,
-     * so there is no column here to order by and a header that pretended otherwise would sort by
-     * nothing.
+     * <p>Quantity is not in this list because it is not a column — stock lives in
+     * {@code inventory_stock}, one row per folder. It is still sortable, via {@link #TOTAL_QUANTITY}
+     * below, which orders by the same sum the response reports.
      */
     private static final Set<String> SORTABLE =
             Set.of("created_at", "name", "sku", "barcode", "unit", "purchase_price", "supplier");
+
+    /**
+     * The product's stock across every folder, as an expression rather than a column.
+     *
+     * <p>Kept identical to what {@code InventoryItemResponse.totalQuantity} reports — if the two
+     * ever drift, the table would order by a number it does not display.
+     */
+    private static final String TOTAL_QUANTITY =
+            "(coalesce((select sum(s.quantity) from ces_service.inventory_stock s"
+                    + " where s.item_id = i.id and s.deleted_at is null), 0))";
 
     private Pageable toPageable(int page, int size, String sort, String dir) {
         int pageIndex = Math.max(page, 1) - 1;
         int pageSize = Math.min(Math.max(size, 1), 100);
         Sort.Direction direction = "asc".equalsIgnoreCase(dir) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        String field = SORTABLE.contains(sort) ? sort : "created_at";
-        return PageRequest.of(pageIndex, pageSize, Sort.by(direction, field));
+        Sort order = "totalQuantity".equals(sort)
+                ? JpaSort.unsafe(direction, TOTAL_QUANTITY)
+                : Sort.by(direction, SORTABLE.contains(sort) ? sort : "created_at");
+        return PageRequest.of(pageIndex, pageSize, order);
     }
 }
