@@ -42,7 +42,12 @@ public enum ErrorCode {
     WEAK_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Password does not meet the security policy"),
     WO_INVALID_STATUS_TRANSITION(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid work order status transition"),
     STOCK_INSUFFICIENT(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock"),
-    ENGINE_HOURS_DECREASING(HttpStatus.UNPROCESSABLE_ENTITY, "Engine hours cannot decrease"),
+    ENGINE_HOURS_DECREASING(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "Meter value cannot decrease — use the rollover endpoint for a deliberate reset"),
+    METER_TYPE_NOT_ENABLED(HttpStatus.UNPROCESSABLE_ENTITY, "This vehicle does not track that meter type"),
+    METER_ROLLOVER_REASON_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "A rollover requires a reason"),
+    MAINTENANCE_PLAN_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "This maintenance plan is not active"),
     COST_BELOW_UNIT_COST(HttpStatus.UNPROCESSABLE_ENTITY, "Sell price is below unit cost"),
     WO_CLOSE_REQUIRES_COST(HttpStatus.UNPROCESSABLE_ENTITY, "A work order requires cost items before it can be closed"),
     VEHICLE_IN_SERVICE(HttpStatus.UNPROCESSABLE_ENTITY, "Vehicle is currently in service"),

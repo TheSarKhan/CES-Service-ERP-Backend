@@ -81,12 +81,52 @@ Marka/Model/Növ/Lokasiya sərbəst mətn sahələridir, yazıldıqda `garage_co
 mövcud deyilsə avtomatik qeydə alınır (brifin "yeni marka gələcək qeydiyyatlarda seçim kimi
 görünsün" tələbi) — FK yox, çünki sərbəst yaradılma tələb olunur.
 
-## Motosaat sxemi (növbəti mərhələdə, qeyd üçün)
+## Motosaat sxemi (V47)
 
-`engine_hour_logs` → `meter_readings` adına keçir, `meter_type` sütunu əlavə olunur
-(`ENGINE_HOURS`/`KILOMETERS`), `hours_value` → `value`. Qalan sütunlar (previous_value,
-generated delta, entry_type, is_rollover, rollover_reason, source_ref_id, recorded_at) olduğu
-kimi qalır — SRS-in bu hissəsi düzgün düşünülüb, dəyişən yalnız ümumiləşdirmədir.
+`engine_hour_logs` → `meter_readings` adına keçdi, `meter_type` sütunu əlavə olundu
+(`ENGINE_HOURS`/`KILOMETERS`), `hours_value` → `value`, `entry_type` → `source` (sərt CHECK
+yerinə `garage_config_values(METER_SOURCE)`-a qarşı yoxlanılır — V46-da artıq is_system=TRUE
+seed edilib: Manual/Servis/Baxım/İdxal/Digər). `deleted_at` əlavə olundu (BaseEntity tələbi,
+Qarajda tapılan eyni tələ). Trigger `meter_type`-a görə `vehicles.current_engine_hours` və ya
+`current_km`-i yeniləyir.
+
+**Reset/rollover** iki ayrı endpoint kimi qurulub, bir-birinin fallback-ı deyil:
+- `POST /vehicles/{id}/meter-readings` — normal qeyd, cari dəyərdən aşağı olarsa **birbaşa rədd
+  olunur** (`ENGINE_HOURS_DECREASING`), heç bir təsdiq axınına düşmür.
+- `POST /vehicles/{id}/meter-readings/rollover` — bilərəkdən reset, **məcburi səbəb**, həmişə
+  Təsdiqləmələr növbəsindən keçir (`ApprovalEntityType.METER_READING`, `ApprovalOperation
+  .METER_ROLLOVER`, `entityId` = vehicleId — texnikanı kilidləyir, oxşar bir rollover isteği
+  gözləyərkən ikincisi qəbul olunmur).
+
+**Yeni cədvəllər:**
+- `vehicle_maintenance_plans` — texnika üzrə fərdi baxım sətri, `garage_maintenance_
+  template_items`-in sütunlarını (interval_meter_hours/interval_km/interval_calendar_days)
+  eynilə güzgülər, FK yox (şablon dəyişikliyi mövcud plana keçməsin — brif). Plan yaradılanda
+  `last_done_*` texnikanın CƏLB OLUNAN meter tipi üzrə CARİ dəyərinə/tarixinə "başlanğıc nöqtəsi"
+  kimi doldurulur — plan sıfırdan "indi başlayır".
+- `vehicle_maintenance_completions` — "Baxımı tamamla" (yalnız Manual yol; "Servis vasitəsilə"
+  Servis modulu qurulanda əlavə olunacaq). Tamamlanma zamanı verilən motosaat/KM dəyərləri EYNİ
+  zamanda adi bir `meter_readings` sətri kimi də yazılır (`source='Baxım'`) — vahid tarixçə,
+  iki yerdə saxlanmır.
+
+**İcazə:** yeni ad uydurulmayıb — V4-də artıq olan `EH_READ`/`EH_CREATE` bütün Motosaat
+əməliyyatlarını (qeyd, plan CRUD, tamamlama, şablon tətbiqi) örtür; `APPROVAL_READ`/
+`APPROVAL_DECIDE` rollover-in təsdiqini idarə edir (modul-spesifik icazə lazım deyil, Qarajda
+olduğu kimi).
+
+**Gələcəyə saxlanılanlar** (brifdə var, bu mərhələdə tikilmədi, çünki asılı olduğu modul yoxdur):
+- Baxım tamamlanmasında istifadə olunan material/ehtiyat hissələrinin Anbar/Stok ilə
+  əlaqələndirilməsi (stok çıxışı) — hazırda sərbəst mətn (`materials_notes`). Anbar inteqrasiyası
+  bu sahəni real stok-hərəkətinə çevirəcək.
+- "Servis vasitəsilə" tamamlanma yolu — Servis modulu (M05/M06) qurulanda
+  `vehicle_maintenance_completions`-a `source_ref_id`-oxşar sütun əlavə olunacaq.
+- `engine_hour_alerts` (Baxış modulu, M18) — toxunulmadı, ayrı konsepsiya (bax yuxarı bölmə).
+
+## Backend doğrulaması
+
+Təcrid olunmuş QA mühitində (55432/58081/3001): V47 miqrasiyası təmiz tətbiq olundu, Hibernate
+sxem yoxlaması keçdi, 21 ssenarili curl testi (qeyd, rollover+approval, plan yaratma, due/overdue
+hesablanması, tamamlama, şablon tətbiqi, deaktivasiya, silmə) hamısı gözlənilən nəticəni verdi.
 
 ## Qaraj backend — tapılan iki tələ
 
@@ -105,10 +145,10 @@ kimi qalır — SRS-in bu hissəsi düzgün düşünülüb, dəyişən yalnız �
 
 | # | Mərhələ | Vəziyyət |
 |---|---|---|
-| 1 | Qaraj: baza sxemi | 🔄 |
-| 2 | Qaraj: backend (CRUD, kod generasiyası, təsdiq) | ⏳ |
-| 3 | Qaraj: Konfiqurasiya API | ⏳ |
-| 4 | Qaraj: frontend | ⏳ |
-| 5 | Motosaat: baza sxemi | ⏳ |
-| 6 | Motosaat: backend (qeyd, reset, baxım planı) | ⏳ |
+| 1 | Qaraj: baza sxemi | ✅ |
+| 2 | Qaraj: backend (CRUD, kod generasiyası, təsdiq) | ✅ |
+| 3 | Qaraj: Konfiqurasiya API | ✅ |
+| 4 | Qaraj: frontend | ✅ |
+| 5 | Motosaat: baza sxemi (V47) | ✅ |
+| 6 | Motosaat: backend (qeyd, reset, baxım planı) | ✅ |
 | 7 | Motosaat: frontend | ⏳ |

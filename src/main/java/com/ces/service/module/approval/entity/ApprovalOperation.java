@@ -17,5 +17,7 @@ public enum ApprovalOperation {
     /** Moving a warranty end date — reviewed because it decides who pays for a repair. */
     WARRANTY_EXTEND,
     /** Historical, kept so already-decided requests still load. See {@code ApprovalEntityType}. */
-    STOCKTAKE_APPLY
+    STOCKTAKE_APPLY,
+    /** A meter reading lower than the vehicle's current value — see {@code MeterReadingService}. */
+    METER_ROLLOVER
 }

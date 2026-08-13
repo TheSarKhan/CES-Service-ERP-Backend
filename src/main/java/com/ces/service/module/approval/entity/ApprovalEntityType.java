@@ -8,6 +8,8 @@ public enum ApprovalEntityType {
     INVENTORY_CATEGORY,
     /** A piece of equipment (Qaraj) — see {@code VehicleApprovalExecutor}. */
     VEHICLE,
+    /** A vehicle's meter (Motosaat) — locks by vehicle id. See {@code MeterReadingApprovalExecutor}. */
+    METER_READING,
     /**
      * Historical. The stocktake sheet was removed, but decided requests still carry this type and
      * dropping the constant would make the approval history fail to load.
