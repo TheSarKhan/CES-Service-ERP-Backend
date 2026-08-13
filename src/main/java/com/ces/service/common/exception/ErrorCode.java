@@ -35,6 +35,8 @@ public enum ErrorCode {
     DUPLICATE_SERIAL_NUMBER(HttpStatus.CONFLICT, "This serial number already exists"),
     DUPLICATE_CATEGORY_NAME(HttpStatus.CONFLICT, "A category with this name already exists"),
     DUPLICATE_FIELD_KEY(HttpStatus.CONFLICT, "A field with this key already exists on this category"),
+    GARAGE_IDENTIFIER_DUPLICATE(HttpStatus.CONFLICT, "This chassis/serial/plate number is already registered"),
+    GARAGE_CONFIG_DUPLICATE(HttpStatus.CONFLICT, "This value already exists in this list"),
 
     // ── Business-rule violations (422) ──────────────────────────────────────
     WEAK_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Password does not meet the security policy"),
@@ -73,6 +75,12 @@ public enum ErrorCode {
     OPENING_LOT_REQUIRED(
             HttpStatus.UNPROCESSABLE_ENTITY,
             "Switching to batch tracking needs a batch number for the stock already held"),
+    GARAGE_OWNER_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "Customer-owned equipment must name an owner"),
+    GARAGE_CONFIG_VALUE_INVALID(
+            HttpStatus.UNPROCESSABLE_ENTITY, "This value is not an active option in that configuration list"),
+    GARAGE_CONFIG_SYSTEM_PROTECTED(
+            HttpStatus.UNPROCESSABLE_ENTITY, "System-seeded configuration values cannot be deleted, only deactivated"),
+    GARAGE_COMPONENT_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "This component has already been removed"),
     APPROVAL_SELF_DECISION(HttpStatus.UNPROCESSABLE_ENTITY, "You cannot approve or reject your own request"),
     APPROVAL_ALREADY_DECIDED(HttpStatus.UNPROCESSABLE_ENTITY, "This request has already been decided"),
     INVALID_FILE_TYPE(HttpStatus.UNPROCESSABLE_ENTITY, "Only JPEG, PNG, WEBP and GIF images are allowed"),
