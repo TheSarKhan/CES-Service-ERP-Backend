@@ -10,6 +10,8 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +25,8 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class GarageUploadService {
 
+    private static final Logger log = LoggerFactory.getLogger(GarageUploadService.class);
+
     private static final long MAX_FILE_SIZE_BYTES = 15L * 1024 * 1024; // 15MB — a scanned passport can be large
     private static final Map<String, String> ALLOWED_CONTENT_TYPES = Map.of(
             "image/jpeg", ".jpg",
@@ -34,15 +38,29 @@ public class GarageUploadService {
     private final Path storageDir;
     private final String urlPrefix;
 
+    /**
+     * Deliberately doesn't throw on a directory-creation failure (unlike a plain {@code
+     * Files.createDirectories} would suggest): an upload-path permissions problem is real but
+     * scoped to Qaraj's own photo/document uploads, and taking down every other module's login,
+     * warehouse, everything else with it — as a single failed mkdir at boot did in production
+     * once already — is a worse outcome than a feature that degrades until an operator fixes the
+     * volume. {@link #store} re-attempts creation on every call, so it recovers without a restart
+     * once the underlying issue (e.g. volume ownership) is fixed.
+     */
     public GarageUploadService(
             @Value("${ces.uploads.dir}") String uploadsDir,
             @Value("${ces.uploads.url-prefix}") String urlPrefix) {
         this.storageDir = Paths.get(uploadsDir).toAbsolutePath().normalize().resolve("garage");
         this.urlPrefix = urlPrefix;
+        ensureStorageDir();
+    }
+
+    private void ensureStorageDir() {
         try {
-            Files.createDirectories(this.storageDir);
+            Files.createDirectories(storageDir);
         } catch (IOException e) {
-            throw new IllegalStateException("Could not create garage uploads directory: " + this.storageDir, e);
+            log.error("Could not create garage uploads directory: {} — uploads will fail until this is fixed",
+                    storageDir, e);
         }
     }
 
@@ -61,6 +79,7 @@ public class GarageUploadService {
             throw new BusinessException(ErrorCode.FILE_TOO_LARGE);
         }
 
+        ensureStorageDir();
         String storedName = UUID.randomUUID() + extension;
         Path target = storageDir.resolve(storedName);
         try (InputStream in = file.getInputStream()) {
