@@ -4,6 +4,8 @@ import com.ces.service.module.garage.entity.Vehicle;
 import com.ces.service.module.garage.enums.GarageType;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,6 +43,12 @@ public class VehicleResponse {
     private Instant lastEngineHoursAt;
     private BigDecimal currentKm;
     private Instant lastKmAt;
+    private LocalDate purchaseDate;
+    private BigDecimal purchasePrice;
+    private BigDecimal marketValue;
+    private BigDecimal depreciationPercent;
+    private List<String> safetyEquipment;
+    private List<String> mandatoryDocuments;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -73,6 +81,12 @@ public class VehicleResponse {
                 .lastEngineHoursAt(v.getLastEngineHoursAt())
                 .currentKm(v.getCurrentKm())
                 .lastKmAt(v.getLastKmAt())
+                .purchaseDate(v.getPurchaseDate())
+                .purchasePrice(v.getPurchasePrice())
+                .marketValue(v.getMarketValue())
+                .depreciationPercent(v.getDepreciationPercent())
+                .safetyEquipment(v.getSafetyEquipment())
+                .mandatoryDocuments(v.getMandatoryDocuments())
                 .createdAt(v.getCreatedAt())
                 .updatedAt(v.getUpdatedAt())
                 .build();

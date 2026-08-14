@@ -9,6 +9,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,6 +22,8 @@ import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.GenerationTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * A piece of equipment (Texnika) — the single source of truth every other module (Servis,
@@ -114,4 +119,28 @@ public class Vehicle extends BaseEntity {
 
     @Column(name = "last_km_at")
     private Instant lastKmAt;
+
+    @Column(name = "purchase_date")
+    private LocalDate purchaseDate;
+
+    @Column(name = "purchase_price")
+    private BigDecimal purchasePrice;
+
+    @Column(name = "market_value")
+    private BigDecimal marketValue;
+
+    @Column(name = "depreciation_percent")
+    private BigDecimal depreciationPercent;
+
+    /** Checklist values, each a {@code garage_config_values(SAFETY_EQUIPMENT)} entry. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "safety_equipment", columnDefinition = "text[]")
+    @Builder.Default
+    private List<String> safetyEquipment = new ArrayList<>();
+
+    /** Checklist values, each a {@code garage_config_values(MANDATORY_DOCUMENT)} entry. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "mandatory_documents", columnDefinition = "text[]")
+    @Builder.Default
+    private List<String> mandatoryDocuments = new ArrayList<>();
 }

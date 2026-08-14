@@ -86,6 +86,11 @@ public enum ErrorCode {
     GARAGE_CONFIG_SYSTEM_PROTECTED(
             HttpStatus.UNPROCESSABLE_ENTITY, "System-seeded configuration values cannot be deleted, only deactivated"),
     GARAGE_COMPONENT_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "This component has already been removed"),
+    MATERIAL_LINE_INVALID(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "A material line is missing the fields its kind requires"),
+    INVENTORY_UNIT_NOT_AVAILABLE(
+            HttpStatus.UNPROCESSABLE_ENTITY, "This unit is not in stock and cannot be used"),
     APPROVAL_SELF_DECISION(HttpStatus.UNPROCESSABLE_ENTITY, "You cannot approve or reject your own request"),
     APPROVAL_ALREADY_DECIDED(HttpStatus.UNPROCESSABLE_ENTITY, "This request has already been decided"),
     INVALID_FILE_TYPE(HttpStatus.UNPROCESSABLE_ENTITY, "Only JPEG, PNG, WEBP and GIF images are allowed"),

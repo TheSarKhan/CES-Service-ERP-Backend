@@ -3,6 +3,7 @@ package com.ces.service.module.enginehours.dto;
 import com.ces.service.module.enginehours.entity.VehicleMaintenanceCompletion;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,8 +29,10 @@ public class VehicleMaintenanceCompletionResponse {
     private String description;
     private String materialsNotes;
     private String notes;
+    private List<MaterialLineResponse> materials;
 
-    public static VehicleMaintenanceCompletionResponse from(VehicleMaintenanceCompletion c, String maintenanceType) {
+    public static VehicleMaintenanceCompletionResponse from(
+            VehicleMaintenanceCompletion c, String maintenanceType, List<MaterialLineResponse> materials) {
         return VehicleMaintenanceCompletionResponse.builder()
                 .id(c.getId())
                 .planId(c.getPlanId())
@@ -41,6 +44,7 @@ public class VehicleMaintenanceCompletionResponse {
                 .description(c.getDescription())
                 .materialsNotes(c.getMaterialsNotes())
                 .notes(c.getNotes())
+                .materials(materials)
                 .build();
     }
 }

@@ -110,17 +110,66 @@ Qarajda tapılan eyni tələ). Trigger `meter_type`-a görə `vehicles.current_e
   iki yerdə saxlanmır.
 
 **İcazə:** yeni ad uydurulmayıb — V4-də artıq olan `EH_READ`/`EH_CREATE` bütün Motosaat
-əməliyyatlarını (qeyd, plan CRUD, tamamlama, şablon tətbiqi) örtür; `APPROVAL_READ`/
-`APPROVAL_DECIDE` rollover-in təsdiqini idarə edir (modul-spesifik icazə lazım deyil, Qarajda
-olduğu kimi).
+əməliyyatlarını (qeyd, plan CRUD, tamamlama, şablon tətbiqi) örtür. Rollover-in təsdiqi isə
+(V49-dan sonra) `GARAGE_APPROVAL_READ`/`GARAGE_APPROVAL_DECIDE` ilə idarə olunur — bax aşağıdakı
+"Qaraj təsdiq növbəsi Anbardan ayrıldı" bölməsi.
 
 **Gələcəyə saxlanılanlar** (brifdə var, bu mərhələdə tikilmədi, çünki asılı olduğu modul yoxdur):
-- Baxım tamamlanmasında istifadə olunan material/ehtiyat hissələrinin Anbar/Stok ilə
-  əlaqələndirilməsi (stok çıxışı) — hazırda sərbəst mətn (`materials_notes`). Anbar inteqrasiyası
-  bu sahəni real stok-hərəkətinə çevirəcək.
 - "Servis vasitəsilə" tamamlanma yolu — Servis modulu (M05/M06) qurulanda
   `vehicle_maintenance_completions`-a `source_ref_id`-oxşar sütun əlavə olunacaq.
 - `engine_hour_alerts` (Baxış modulu, M18) — toxunulmadı, ayrı konsepsiya (bax yuxarı bölmə).
+
+## Material/ehtiyat hissələri Anbar ilə əlaqələndirilməsi (V48)
+
+Baxım tamamlanmasında istifadə olunan materiallar indi Anbar/Stok ilə əlaqələndirilə bilər —
+əvvəlki mərhələdə "gələcəyə saxlanılan" bu maddə artıq bağlıdır. `materialsNotes` (sərbəst mətn)
+saxlanılır, əlavə olaraq strukturlaşdırılmış `materials` siyahısı gəlir (istifadəçinin qərarı:
+hər ikisi olsun, biri digərini əvəz etməsin):
+
+- **CONSUMABLE** (sayıla bilən — yağ, filtr): Anbar item + qovluq + miqdar seçilir, adi bir
+  Anbar stok-çıxışı (`STOCK_OUT`) təqdim olunur. Bu, **Anbarın öz Təsdiqləmələr növbəsindən**
+  keçir — baxımın özündən tam müstəqil (istifadəçinin qərarı: bax aşağı). Baxım dərhal
+  tamamlanır; stok-çıxışı ayrıca təsdiq gözləyir.
+- **SERIALIZED** (seriya nömrəli hissə — hidravlik nasos və s.): seçilən `InventoryItemUnit`
+  birbaşa `IN_USE` statusuna keçir (vahid statusu dəyişikliyi Anbarda təsdiq tələb etmir) VƏ
+  eyni zamanda Qarajın `vehicle_components`-də yeni ACTIVE sətir kimi əks olunur (istifadəçinin
+  qərarı: avtomatik sinxron olsun) — Komponentlər tabı əl ilə ayrıca doldurulmasın deyə.
+
+Yeni cədvəl: `vehicle_maintenance_completion_materials` — hər sətir CONSUMABLE ya SERIALIZED
+sahələrini daşıyır (DB CHECK ilə qarşılıqlı təmin olunur), `inventoryItemName`/`unit`/
+`serialNumber` yazma anında snapshot olunur ki, mənbə sətir sonra dəyişsə/silinsə də oxunaqlı
+qalsın.
+
+## Qaraj təsdiq növbəsi Anbardan ayrıldı (V49)
+
+İstifadəçinin açıq qərarı: Qaraj/Motosaat təsdiqləri (VEHICLE, METER_READING) Anbarın
+`approval_requests` cədvəlində qarışmamalıdır — həqiqi ayrı baza cədvəli və ayrı sidebar
+modulu/səhifəsi olmalıdır (Qaraj altında, Anbarın öz "Təsdiqləmələr" ekranı ilə paylaşılmadan).
+
+- Yeni cədvəl: `garage_approval_requests` (`approval_requests` ilə eyni struktur). Miqrasiya
+  mövcud VEHICLE/METER_READING sətirlərini köhnə cədvəldən köçürür və oradan silir — tarixçə
+  itmir.
+- Yeni Java paketi: `module.garageapproval` — `GarageApprovalRequest`/`GarageApprovalService`/
+  `GarageApprovalExecutor`/`GarageApprovalController`, Anbarın `module.approval`-ın tam
+  müstəqil əkizi (`ApprovalStatus`/`ApprovalDecisionRequest` ümumi olduğu üçün paylaşılır,
+  entity-type/operation enumları isə ayrıdır: `GarageApprovalEntityType`
+  {VEHICLE, METER_READING}, `GarageApprovalOperation` {UPDATE, DELETE, METER_ROLLOVER}).
+- `VehicleController`/`MeterReadingController` və onların executor-ları `GarageApprovalService`-ə
+  köçürüldü; köhnə `ApprovalEntityType`-dan VEHICLE/METER_READING, `ApprovalOperation`-dan
+  METER_ROLLOVER silindi.
+- Yeni icazələr: `GARAGE_APPROVAL_READ`/`GARAGE_APPROVAL_DECIDE` (Anbarın APPROVAL_READ/DECIDE-i
+  ilə eyni rol bölgüsü — Admin/Servis Meneceri/Direktor qərar verə bilir).
+- Frontend: `/garage/approvals` (yeni səhifə, Qaraj sidebar qrupunun altında, "Qaraj
+  Təsdiqləmələr" adı ilə), `components/garage/GarageApprovalPanel.tsx` — Anbarın
+  `ApprovalPanel.tsx`-in sadələşdirilmiş əkizi (stok/köçürmə diff blokları yoxdur, hər əməliyyat
+  sadə sahə diff-idir).
+- **Fərq:** material tamamlanmasında CONSUMABLE sətirinin göndərdiyi Anbar stok-çıxışı **Anbarın
+  öz növbəsində qalır** — bu, Qarajdan tətiklənsə də, həqiqətən Anbar hərəkətidir (istifadəçinin
+  açıq qərarı). Yalnız Qarajın/Motosaatın öz təbiətli əməliyyatları (Texnika redaktəsi/silinməsi,
+  Motosaat sıfırlanması) yeni növbəyə keçdi.
+- Uc-uca curl testi ilə təsdiqləndi: VEHICLE/METER_READING yalnız `/garage/approvals`-da görünür,
+  `/approvals`-a sızmır; stok-çıxış təsdiqi əksinə, yalnız `/approvals`-da qalır və
+  `/garage/approvals`-a sızmır.
 
 ## Backend doğrulaması
 
@@ -151,4 +200,6 @@ hesablanması, tamamlama, şablon tətbiqi, deaktivasiya, silmə) hamısı gözl
 | 4 | Qaraj: frontend | ✅ |
 | 5 | Motosaat: baza sxemi (V47) | ✅ |
 | 6 | Motosaat: backend (qeyd, reset, baxım planı) | ✅ |
-| 7 | Motosaat: frontend | ⏳ |
+| 7 | Motosaat: frontend | ✅ |
+| 8 | Material/ehtiyat hissələrinin Anbar ilə əlaqələndirilməsi (V48) | ✅ |
+| 9 | Qaraj təsdiq növbəsinin Anbardan ayrılması (V49) | ✅ |

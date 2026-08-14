@@ -4,6 +4,9 @@ import com.ces.service.module.garage.enums.GarageType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -72,4 +75,21 @@ public class VehicleRequest {
     private Boolean usesEngineHours;
 
     private Boolean usesKm;
+
+    /** Starting reading, applied once at creation only — later values come from real readings. */
+    private BigDecimal initialMeterValue;
+
+    private LocalDate purchaseDate;
+
+    private BigDecimal purchasePrice;
+
+    private BigDecimal marketValue;
+
+    private BigDecimal depreciationPercent;
+
+    /** Each a {@code garage_config_values(SAFETY_EQUIPMENT)} value. Null on create means none. */
+    private List<String> safetyEquipment;
+
+    /** Each a {@code garage_config_values(MANDATORY_DOCUMENT)} value. Null on create means none. */
+    private List<String> mandatoryDocuments;
 }

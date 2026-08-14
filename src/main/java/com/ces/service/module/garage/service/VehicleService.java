@@ -11,7 +11,10 @@ import com.ces.service.module.garage.entity.Vehicle;
 import com.ces.service.module.garage.enums.GarageConfigListType;
 import com.ces.service.module.garage.enums.GarageType;
 import com.ces.service.module.garage.repository.VehicleRepository;
+import com.ces.service.module.customer.repository.CustomerRepository;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,12 +37,17 @@ public class VehicleService {
     private final VehicleRepository vehicleRepository;
     private final GarageConfigService configService;
     private final GarageAuditLogger auditLogger;
+    private final CustomerRepository customerRepository;
 
     public VehicleService(
-            VehicleRepository vehicleRepository, GarageConfigService configService, GarageAuditLogger auditLogger) {
+            VehicleRepository vehicleRepository,
+            GarageConfigService configService,
+            GarageAuditLogger auditLogger,
+            CustomerRepository customerRepository) {
         this.vehicleRepository = vehicleRepository;
         this.configService = configService;
         this.auditLogger = auditLogger;
+        this.customerRepository = customerRepository;
     }
 
     @Transactional(readOnly = true)
@@ -74,7 +82,13 @@ public class VehicleService {
 
     @Transactional(readOnly = true)
     public VehicleResponse get(UUID id) {
-        return VehicleResponse.from(loadVehicle(id));
+        Vehicle vehicle = loadVehicle(id);
+        String ownerName = vehicle.getOwnerId() == null
+                ? null
+                : customerRepository.findByIdAndBranchIdAndDeletedAtIsNull(vehicle.getOwnerId(), vehicle.getBranchId())
+                        .map(c -> c.getFullName())
+                        .orElse(null);
+        return VehicleResponse.from(vehicle, ownerName);
     }
 
     public VehicleResponse create(VehicleRequest request) {
@@ -93,11 +107,18 @@ public class VehicleService {
                 .plateNumber(blankToNull(request.getPlateNumber()))
                 .currentLocation(request.getCurrentLocation())
                 .notes(request.getNotes())
+                .purchaseDate(request.getPurchaseDate())
+                .purchasePrice(request.getPurchasePrice())
+                .marketValue(request.getMarketValue())
+                .depreciationPercent(request.getDepreciationPercent())
+                .safetyEquipment(nullToEmpty(request.getSafetyEquipment()))
+                .mandatoryDocuments(nullToEmpty(request.getMandatoryDocuments()))
                 .build();
         vehicle.setBranchId(branchId);
         applyOwnership(vehicle, request);
         applyStatus(vehicle, branchId, request.getStatus());
         applyMeterUsage(vehicle, branchId, request);
+        applyInitialMeterValue(vehicle, request);
         registerOpenValues(branchId, request);
 
         // flush, not save: @Generated only refreshes `code` once the INSERT actually reaches the
@@ -140,6 +161,12 @@ public class VehicleService {
         vehicle.setPlateNumber(blankToNull(request.getPlateNumber()));
         vehicle.setCurrentLocation(request.getCurrentLocation());
         vehicle.setNotes(request.getNotes());
+        vehicle.setPurchaseDate(request.getPurchaseDate());
+        vehicle.setPurchasePrice(request.getPurchasePrice());
+        vehicle.setMarketValue(request.getMarketValue());
+        vehicle.setDepreciationPercent(request.getDepreciationPercent());
+        vehicle.setSafetyEquipment(nullToEmpty(request.getSafetyEquipment()));
+        vehicle.setMandatoryDocuments(nullToEmpty(request.getMandatoryDocuments()));
         applyOwnership(vehicle, request);
         applyStatus(vehicle, vehicle.getBranchId(), request.getStatus());
         applyMeterUsage(vehicle, vehicle.getBranchId(), request);
@@ -219,6 +246,31 @@ public class VehicleService {
         boolean defaultKm = type != null && type.getDefaultUsesKm() != null ? type.getDefaultUsesKm() : false;
         vehicle.setUsesEngineHours(request.getUsesEngineHours() != null ? request.getUsesEngineHours() : defaultHours);
         vehicle.setUsesKm(request.getUsesKm() != null ? request.getUsesKm() : defaultKm);
+    }
+
+    /**
+     * A brand-new vehicle's starting reading, set directly on the fast-read cache columns rather
+     * than through Motosaat's {@code engine_hour_logs} — there is no prior reading for a rollover
+     * trigger to reconcile against, so this is simply where the counter starts. Ignored on update:
+     * once real readings may exist, only Motosaat's own recording flow may move the counter.
+     */
+    private void applyInitialMeterValue(Vehicle vehicle, VehicleRequest request) {
+        if (request.getInitialMeterValue() == null) {
+            return;
+        }
+        Instant now = Instant.now();
+        if (Boolean.TRUE.equals(vehicle.getUsesEngineHours())) {
+            vehicle.setCurrentEngineHours(request.getInitialMeterValue());
+            vehicle.setLastEngineHoursAt(now);
+        }
+        if (Boolean.TRUE.equals(vehicle.getUsesKm())) {
+            vehicle.setCurrentKm(request.getInitialMeterValue());
+            vehicle.setLastKmAt(now);
+        }
+    }
+
+    private List<String> nullToEmpty(List<String> values) {
+        return values != null ? values : new ArrayList<>();
     }
 
     /** Open-ended fields grow their own pick list the first time a new value is typed. */

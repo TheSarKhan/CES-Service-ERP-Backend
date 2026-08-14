@@ -16,9 +16,9 @@ import com.ces.service.module.garage.repository.VehicleRepository;
 import com.ces.service.module.garage.service.GarageConfigService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,13 +49,11 @@ public class MeterReadingService {
     }
 
     @Transactional(readOnly = true)
-    public List<MeterReadingResponse> history(UUID vehicleId) {
+    public Page<MeterReadingResponse> history(UUID vehicleId, Pageable pageable) {
         loadVehicle(vehicleId);
         return meterReadingRepository
-                .findByVehicleIdAndDeletedAtIsNullOrderByRecordedAtDescCreatedAtDesc(vehicleId)
-                .stream()
-                .map(MeterReadingResponse::from)
-                .collect(Collectors.toList());
+                .findByVehicleIdAndDeletedAtIsNull(vehicleId, pageable)
+                .map(MeterReadingResponse::from);
     }
 
     public MeterReadingResponse record(UUID vehicleId, MeterReadingRequest request) {

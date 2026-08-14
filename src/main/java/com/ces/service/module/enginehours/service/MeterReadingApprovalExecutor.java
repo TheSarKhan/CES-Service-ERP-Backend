@@ -2,33 +2,34 @@ package com.ces.service.module.enginehours.service;
 
 import com.ces.service.common.exception.BusinessException;
 import com.ces.service.common.exception.ErrorCode;
-import com.ces.service.module.approval.entity.ApprovalEntityType;
-import com.ces.service.module.approval.entity.ApprovalRequest;
-import com.ces.service.module.approval.service.ApprovalExecutor;
-import com.ces.service.module.approval.service.ApprovalService;
 import com.ces.service.module.enginehours.dto.MeterRolloverRequest;
+import com.ces.service.module.garageapproval.entity.GarageApprovalEntityType;
+import com.ces.service.module.garageapproval.entity.GarageApprovalRequest;
+import com.ces.service.module.garageapproval.service.GarageApprovalExecutor;
+import com.ces.service.module.garageapproval.service.GarageApprovalService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /** Replays an approved meter rollover. See {@code VehicleApprovalExecutor} for the same shape. */
 @Component
-public class MeterReadingApprovalExecutor implements ApprovalExecutor {
+public class MeterReadingApprovalExecutor implements GarageApprovalExecutor {
 
     private final MeterReadingService meterReadingService;
-    private final ApprovalService approvalService;
+    private final GarageApprovalService approvalService;
 
-    public MeterReadingApprovalExecutor(MeterReadingService meterReadingService, @Lazy ApprovalService approvalService) {
+    public MeterReadingApprovalExecutor(
+            MeterReadingService meterReadingService, @Lazy GarageApprovalService approvalService) {
         this.meterReadingService = meterReadingService;
         this.approvalService = approvalService;
     }
 
     @Override
-    public ApprovalEntityType entityType() {
-        return ApprovalEntityType.METER_READING;
+    public GarageApprovalEntityType entityType() {
+        return GarageApprovalEntityType.METER_READING;
     }
 
     @Override
-    public void execute(ApprovalRequest request) {
+    public void execute(GarageApprovalRequest request) {
         switch (request.getOperation()) {
             case METER_ROLLOVER -> meterReadingService.applyRollover(
                     request.getEntityId(), approvalService.readPayload(request, MeterRolloverRequest.class));

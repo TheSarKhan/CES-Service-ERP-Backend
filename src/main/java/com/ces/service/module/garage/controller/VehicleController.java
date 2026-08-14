@@ -2,14 +2,14 @@ package com.ces.service.module.garage.controller;
 
 import com.ces.service.common.dto.ApiResponse;
 import com.ces.service.common.dto.PageResponse;
-import com.ces.service.module.approval.dto.ApprovalRequestResponse;
-import com.ces.service.module.approval.entity.ApprovalEntityType;
-import com.ces.service.module.approval.entity.ApprovalOperation;
-import com.ces.service.module.approval.service.ApprovalService;
 import com.ces.service.module.garage.dto.VehicleRequest;
 import com.ces.service.module.garage.dto.VehicleResponse;
 import com.ces.service.module.garage.enums.GarageType;
 import com.ces.service.module.garage.service.VehicleService;
+import com.ces.service.module.garageapproval.dto.GarageApprovalRequestResponse;
+import com.ces.service.module.garageapproval.entity.GarageApprovalEntityType;
+import com.ces.service.module.garageapproval.entity.GarageApprovalOperation;
+import com.ces.service.module.garageapproval.service.GarageApprovalService;
 import jakarta.validation.Valid;
 import java.util.Set;
 import java.util.UUID;
@@ -46,9 +46,9 @@ public class VehicleController {
             Set.of("code", "name", "make", "model", "status", "vehicleType", "createdAt");
 
     private final VehicleService vehicleService;
-    private final ApprovalService approvalService;
+    private final GarageApprovalService approvalService;
 
-    public VehicleController(VehicleService vehicleService, ApprovalService approvalService) {
+    public VehicleController(VehicleService vehicleService, GarageApprovalService approvalService) {
         this.vehicleService = vehicleService;
         this.approvalService = approvalService;
     }
@@ -91,25 +91,25 @@ public class VehicleController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('VEHICLE_UPDATE')")
-    public ResponseEntity<ApiResponse<ApprovalRequestResponse>> update(
+    public ResponseEntity<ApiResponse<GarageApprovalRequestResponse>> update(
             @PathVariable UUID id, @Valid @RequestBody VehicleRequest request) {
         vehicleService.assertUpdateValid(id, request);
-        return accepted(submit(id, ApprovalOperation.UPDATE, request));
+        return accepted(submit(id, GarageApprovalOperation.UPDATE, request));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('VEHICLE_DELETE')")
-    public ResponseEntity<ApiResponse<ApprovalRequestResponse>> delete(@PathVariable UUID id) {
-        return accepted(submit(id, ApprovalOperation.DELETE, null));
+    public ResponseEntity<ApiResponse<GarageApprovalRequestResponse>> delete(@PathVariable UUID id) {
+        return accepted(submit(id, GarageApprovalOperation.DELETE, null));
     }
 
-    private ApprovalRequestResponse submit(UUID id, ApprovalOperation operation, Object payload) {
+    private GarageApprovalRequestResponse submit(UUID id, GarageApprovalOperation operation, Object payload) {
         VehicleResponse before = vehicleService.get(id);
         return approvalService.submit(
-                ApprovalEntityType.VEHICLE, id, before.getName(), operation, payload, before);
+                GarageApprovalEntityType.VEHICLE, id, before.getName(), operation, payload, before);
     }
 
-    private ResponseEntity<ApiResponse<ApprovalRequestResponse>> accepted(ApprovalRequestResponse request) {
+    private ResponseEntity<ApiResponse<GarageApprovalRequestResponse>> accepted(GarageApprovalRequestResponse request) {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.ok(request));
     }
 
