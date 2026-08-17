@@ -92,4 +92,7 @@ public class VehicleRequest {
 
     /** Each a {@code garage_config_values(MANDATORY_DOCUMENT)} value. Null on create means none. */
     private List<String> mandatoryDocuments;
+
+    /** Free-form "ad: dəyər" technical parameter rows. Null on create means none. */
+    private List<VehicleParameterItem> parameters;
 }

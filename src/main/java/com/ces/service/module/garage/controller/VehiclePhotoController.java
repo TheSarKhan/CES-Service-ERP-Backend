@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,6 +49,13 @@ public class VehiclePhotoController {
     @PreAuthorize("hasAuthority('VEHICLE_UPDATE')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID vehicleId, @PathVariable UUID photoId) {
         photoService.delete(vehicleId, photoId);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    @PutMapping("/{photoId}/primary")
+    @PreAuthorize("hasAuthority('VEHICLE_UPDATE')")
+    public ResponseEntity<ApiResponse<Void>> setPrimary(@PathVariable UUID vehicleId, @PathVariable UUID photoId) {
+        photoService.setPrimary(vehicleId, photoId);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 }

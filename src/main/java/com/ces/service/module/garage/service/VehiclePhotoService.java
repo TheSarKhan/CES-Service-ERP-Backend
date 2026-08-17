@@ -3,6 +3,7 @@ package com.ces.service.module.garage.service;
 import com.ces.service.common.exception.ResourceNotFoundException;
 import com.ces.service.common.security.BranchContext;
 import com.ces.service.module.garage.dto.VehiclePhotoResponse;
+import com.ces.service.module.garage.entity.Vehicle;
 import com.ces.service.module.garage.entity.VehiclePhoto;
 import com.ces.service.module.garage.enums.GarageConfigListType;
 import com.ces.service.module.garage.repository.VehiclePhotoRepository;
@@ -49,7 +50,7 @@ public class VehiclePhotoService {
 
     public VehiclePhotoResponse upload(UUID vehicleId, String category, String notes, MultipartFile file) {
         UUID branchId = BranchContext.get();
-        assertVehicleExists(vehicleId);
+        Vehicle vehicle = loadVehicle(vehicleId);
         configService.ensureRegistered(branchId, GarageConfigListType.PHOTO_CATEGORY, category);
 
         GarageUploadService.StoredFile stored = uploadService.store(file);
@@ -63,6 +64,15 @@ public class VehiclePhotoService {
                 .build();
         photo.setBranchId(branchId);
         VehiclePhoto saved = photoRepository.save(photo);
+
+        // First photo on a vehicle becomes its cover automatically — otherwise the Texnikalar
+        // list thumbnail (and anything else reading primaryPhotoUrl) stays on the generic
+        // placeholder icon until someone remembers to click "Əsas foto et" by hand.
+        if (vehicle.getPrimaryPhotoId() == null) {
+            vehicle.setPrimaryPhotoId(saved.getId());
+            vehicle.setPrimaryPhotoUrl(saved.getFileUrl());
+        }
+
         auditLogger.log("CREATE", "VEHICLE_PHOTO", saved.getId(), null, VehiclePhotoResponse.from(saved));
         return VehiclePhotoResponse.from(saved);
     }
@@ -72,10 +82,31 @@ public class VehiclePhotoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle photo not found: " + photoId));
         photo.setDeletedAt(Instant.now());
         auditLogger.log("DELETE", "VEHICLE_PHOTO", photoId, VehiclePhotoResponse.from(photo), null);
+
+        // The FK's ON DELETE SET NULL only clears primary_photo_id at the DB level — the
+        // denormalized URL cache is application-owned and needs the same clearing here.
+        Vehicle vehicle = loadVehicle(vehicleId);
+        if (photoId.equals(vehicle.getPrimaryPhotoId())) {
+            vehicle.setPrimaryPhotoId(null);
+            vehicle.setPrimaryPhotoUrl(null);
+        }
+    }
+
+    /** The cover photo shown in list views — see {@code Vehicle.primaryPhotoId}'s javadoc. */
+    public void setPrimary(UUID vehicleId, UUID photoId) {
+        VehiclePhoto photo = photoRepository.findByIdAndVehicleIdAndDeletedAtIsNull(photoId, vehicleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle photo not found: " + photoId));
+        Vehicle vehicle = loadVehicle(vehicleId);
+        vehicle.setPrimaryPhotoId(photo.getId());
+        vehicle.setPrimaryPhotoUrl(photo.getFileUrl());
     }
 
     private void assertVehicleExists(UUID vehicleId) {
-        vehicleRepository.findByIdAndBranchIdAndDeletedAtIsNull(vehicleId, BranchContext.get())
+        loadVehicle(vehicleId);
+    }
+
+    private Vehicle loadVehicle(UUID vehicleId) {
+        return vehicleRepository.findByIdAndBranchIdAndDeletedAtIsNull(vehicleId, BranchContext.get())
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + vehicleId));
     }
 }

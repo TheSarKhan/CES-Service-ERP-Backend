@@ -13,6 +13,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.GenerationTime;
 
 /**
  * A document filed against a vehicle (texniki pasport, sığorta, ...). {@code docType} is free
@@ -36,7 +38,13 @@ public class VehicleDocument extends BaseEntity {
     @Column(name = "doc_type", nullable = false)
     private String docType;
 
-    @Column(name = "doc_number")
+    /**
+     * DB-generated (SND-000001) by {@code trg_vehicle_document_number} — see {@code Vehicle.code}'s
+     * javadoc for why {@code @Generated} + {@code insertable = false} is needed for Hibernate to
+     * see a trigger-assigned value at all.
+     */
+    @Generated(GenerationTime.INSERT)
+    @Column(name = "doc_number", insertable = false, updatable = false)
     private String docNumber;
 
     @Column(name = "issued_at")

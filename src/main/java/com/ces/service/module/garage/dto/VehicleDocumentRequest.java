@@ -19,7 +19,6 @@ public class VehicleDocumentRequest {
     @NotBlank
     private String docType;
 
-    private String docNumber;
     private LocalDate issuedAt;
     private LocalDate expiresAt;
     private String notes;

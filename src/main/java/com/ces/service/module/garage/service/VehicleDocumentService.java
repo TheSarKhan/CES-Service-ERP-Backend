@@ -12,6 +12,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -62,7 +65,6 @@ public class VehicleDocumentService {
         VehicleDocument document = VehicleDocument.builder()
                 .vehicleId(vehicleId)
                 .docType(request.getDocType())
-                .docNumber(request.getDocNumber())
                 .issuedAt(request.getIssuedAt())
                 .expiresAt(request.getExpiresAt())
                 .fileName(stored.fileName())
@@ -71,9 +73,28 @@ public class VehicleDocumentService {
                 .notes(request.getNotes())
                 .build();
         document.setBranchId(branchId);
-        VehicleDocument saved = documentRepository.save(document);
+        // flush, not save: @Generated only refreshes `docNumber` once the INSERT actually reaches
+        // the database and the trigger has run — see Vehicle.create()'s identical reasoning.
+        VehicleDocument saved = documentRepository.saveAndFlush(document);
         auditLogger.log("CREATE", "VEHICLE_DOCUMENT", saved.getId(), null, VehicleDocumentResponse.from(saved));
         return VehicleDocumentResponse.from(saved);
+    }
+
+    public record DownloadableFile(Resource resource, String fileName, MediaType contentType) {
+    }
+
+    /**
+     * Streams the file back with its original name — unlike the public static handler (see
+     * {@code UploadStaticResourceConfig}), which serves the same bytes under the opaque stored
+     * UUID filename and sets no {@code Content-Disposition} at all.
+     */
+    @Transactional(readOnly = true)
+    public DownloadableFile download(UUID vehicleId, UUID documentId) {
+        VehicleDocument document = documentRepository.findByIdAndVehicleIdAndDeletedAtIsNull(documentId, vehicleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle document not found: " + documentId));
+        Resource resource = uploadService.loadAsResource(document.getFileUrl());
+        MediaType contentType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
+        return new DownloadableFile(resource, document.getFileName(), contentType);
     }
 
     public void delete(UUID vehicleId, UUID documentId) {

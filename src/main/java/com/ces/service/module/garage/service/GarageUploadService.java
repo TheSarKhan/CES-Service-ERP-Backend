@@ -2,6 +2,7 @@ package com.ces.service.module.garage.service;
 
 import com.ces.service.common.exception.BusinessException;
 import com.ces.service.common.exception.ErrorCode;
+import com.ces.service.common.exception.ResourceNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -13,6 +14,8 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -90,5 +93,26 @@ public class GarageUploadService {
 
         String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : storedName;
         return new StoredFile(originalName, urlPrefix + "/garage/" + storedName, file.getSize());
+    }
+
+    /**
+     * Resolves a stored {@code fileUrl} (as saved on the entity, e.g.
+     * {@code /uploads/garage/<uuid>.pdf}) back to the on-disk file, for the authenticated download
+     * endpoint — as opposed to the public static handler in {@code UploadStaticResourceConfig},
+     * which serves the same directory but without a filename-controlled
+     * {@code Content-Disposition}.
+     */
+    public Resource loadAsResource(String fileUrl) {
+        String prefix = urlPrefix + "/garage/";
+        if (fileUrl == null || !fileUrl.startsWith(prefix)) {
+            throw new ResourceNotFoundException("File not found: " + fileUrl);
+        }
+        String storedName = fileUrl.substring(prefix.length());
+        Path target = storageDir.resolve(storedName).normalize();
+        // Guards against a fileUrl smuggling ../ segments out of the garage upload directory.
+        if (!target.startsWith(storageDir) || !Files.isRegularFile(target)) {
+            throw new ResourceNotFoundException("File not found: " + fileUrl);
+        }
+        return new FileSystemResource(target);
     }
 }

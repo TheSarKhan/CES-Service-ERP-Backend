@@ -143,4 +143,21 @@ public class Vehicle extends BaseEntity {
     @Column(name = "mandatory_documents", columnDefinition = "text[]")
     @Builder.Default
     private List<String> mandatoryDocuments = new ArrayList<>();
+
+    /** The cover photo shown in list views — see {@link VehiclePhoto}. Set via its own endpoint. */
+    @Column(name = "primary_photo_id")
+    private UUID primaryPhotoId;
+
+    @Column(name = "primary_photo_url")
+    private String primaryPhotoUrl;
+
+    /**
+     * JSON-encoded {@code List<VehicleParameterItem>} — free-form "ad: dəyər" technical parameter
+     * rows. A raw string here, same as {@code InventoryItem.attributes}: the DTOs do the
+     * structured (de)serialization, the entity just carries the jsonb column.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "parameters", nullable = false, columnDefinition = "jsonb")
+    @Builder.Default
+    private String parameters = "[]";
 }

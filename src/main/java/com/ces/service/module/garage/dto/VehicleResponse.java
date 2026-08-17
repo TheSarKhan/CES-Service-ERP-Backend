@@ -2,6 +2,8 @@ package com.ces.service.module.garage.dto;
 
 import com.ces.service.module.garage.entity.Vehicle;
 import com.ces.service.module.garage.enums.GarageType;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,6 +21,8 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class VehicleResponse {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private UUID id;
     private UUID branchId;
@@ -49,6 +53,9 @@ public class VehicleResponse {
     private BigDecimal depreciationPercent;
     private List<String> safetyEquipment;
     private List<String> mandatoryDocuments;
+    private UUID primaryPhotoId;
+    private String primaryPhotoUrl;
+    private List<VehicleParameterItem> parameters;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -87,8 +94,22 @@ public class VehicleResponse {
                 .depreciationPercent(v.getDepreciationPercent())
                 .safetyEquipment(v.getSafetyEquipment())
                 .mandatoryDocuments(v.getMandatoryDocuments())
+                .primaryPhotoId(v.getPrimaryPhotoId())
+                .primaryPhotoUrl(v.getPrimaryPhotoUrl())
+                .parameters(parseParameters(v.getParameters()))
                 .createdAt(v.getCreatedAt())
                 .updatedAt(v.getUpdatedAt())
                 .build();
+    }
+
+    private static List<VehicleParameterItem> parseParameters(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return MAPPER.readValue(json, new TypeReference<List<VehicleParameterItem>>() {});
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 }

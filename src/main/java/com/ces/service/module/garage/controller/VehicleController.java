@@ -11,6 +11,8 @@ import com.ces.service.module.garageapproval.entity.GarageApprovalEntityType;
 import com.ces.service.module.garageapproval.entity.GarageApprovalOperation;
 import com.ces.service.module.garageapproval.service.GarageApprovalService;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -56,15 +58,17 @@ public class VehicleController {
     @GetMapping
     @PreAuthorize("hasAuthority('VEHICLE_READ')")
     public ResponseEntity<ApiResponse<PageResponse<VehicleResponse>>> list(
-            @RequestParam(required = false) GarageType garageType,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String vehicleType,
-            @RequestParam(required = false) String make,
-            @RequestParam(required = false) String model,
+            @RequestParam(required = false) List<GarageType> garageType,
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) List<String> vehicleType,
+            @RequestParam(required = false) List<String> make,
+            @RequestParam(required = false) List<String> model,
             @RequestParam(required = false) String location,
             @RequestParam(required = false) UUID ownerId,
             @RequestParam(required = false) Boolean usesEngineHours,
             @RequestParam(required = false) Boolean usesKm,
+            @RequestParam(required = false) BigDecimal purchasePriceMin,
+            @RequestParam(required = false) BigDecimal purchasePriceMax,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -72,7 +76,8 @@ public class VehicleController {
             @RequestParam(defaultValue = "desc") String dir) {
         Page<VehicleResponse> result = vehicleService.list(
                 garageType, status, vehicleType, make, model, location, ownerId,
-                usesEngineHours, usesKm, search, toPageable(page, size, sort, dir));
+                usesEngineHours, usesKm, purchasePriceMin, purchasePriceMax, search,
+                toPageable(page, size, sort, dir));
         PageResponse<VehicleResponse> body = PageResponse.of(result);
         return ResponseEntity.ok(ApiResponse.ok(body, body.meta()));
     }

@@ -4,6 +4,7 @@ import com.ces.service.common.exception.BusinessException;
 import com.ces.service.common.exception.ErrorCode;
 import com.ces.service.common.exception.ResourceNotFoundException;
 import com.ces.service.common.security.BranchContext;
+import com.ces.service.module.garage.dto.VehicleParameterItem;
 import com.ces.service.module.garage.dto.VehicleRequest;
 import com.ces.service.module.garage.dto.VehicleResponse;
 import com.ces.service.module.garage.entity.GarageConfigValue;
@@ -12,6 +13,8 @@ import com.ces.service.module.garage.enums.GarageConfigListType;
 import com.ces.service.module.garage.enums.GarageType;
 import com.ces.service.module.garage.repository.VehicleRepository;
 import com.ces.service.module.customer.repository.CustomerRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class VehicleService {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final VehicleRepository vehicleRepository;
     private final GarageConfigService configService;
     private final GarageAuditLogger auditLogger;
@@ -52,29 +57,33 @@ public class VehicleService {
 
     @Transactional(readOnly = true)
     public Page<VehicleResponse> list(
-            GarageType garageType,
-            String status,
-            String vehicleType,
-            String make,
-            String model,
+            List<GarageType> garageType,
+            List<String> status,
+            List<String> vehicleType,
+            List<String> make,
+            List<String> model,
             String location,
             UUID ownerId,
             Boolean usesEngineHours,
             Boolean usesKm,
+            BigDecimal purchasePriceMin,
+            BigDecimal purchasePriceMax,
             String search,
             Pageable pageable) {
         UUID branchId = BranchContext.get();
         Page<Vehicle> page = vehicleRepository.search(
                 branchId,
-                garageType,
-                status,
-                vehicleType,
-                make,
-                model,
+                emptyToNull(garageType),
+                emptyToNull(status),
+                emptyToNull(vehicleType),
+                emptyToNull(make),
+                emptyToNull(model),
                 location,
                 ownerId,
                 usesEngineHours,
                 usesKm,
+                purchasePriceMin,
+                purchasePriceMax,
                 search,
                 pageable);
         return page.map(VehicleResponse::from);
@@ -113,6 +122,7 @@ public class VehicleService {
                 .depreciationPercent(request.getDepreciationPercent())
                 .safetyEquipment(nullToEmpty(request.getSafetyEquipment()))
                 .mandatoryDocuments(nullToEmpty(request.getMandatoryDocuments()))
+                .parameters(toJson(request.getParameters()))
                 .build();
         vehicle.setBranchId(branchId);
         applyOwnership(vehicle, request);
@@ -167,6 +177,7 @@ public class VehicleService {
         vehicle.setDepreciationPercent(request.getDepreciationPercent());
         vehicle.setSafetyEquipment(nullToEmpty(request.getSafetyEquipment()));
         vehicle.setMandatoryDocuments(nullToEmpty(request.getMandatoryDocuments()));
+        vehicle.setParameters(toJson(request.getParameters()));
         applyOwnership(vehicle, request);
         applyStatus(vehicle, vehicle.getBranchId(), request.getStatus());
         applyMeterUsage(vehicle, vehicle.getBranchId(), request);
@@ -271,6 +282,22 @@ public class VehicleService {
 
     private List<String> nullToEmpty(List<String> values) {
         return values != null ? values : new ArrayList<>();
+    }
+
+    private String toJson(List<VehicleParameterItem> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return "[]";
+        }
+        try {
+            return MAPPER.writeValueAsString(parameters);
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
+
+    /** {@code x in ()} isn't portable — the repository query relies on this returning null. */
+    private <T> List<T> emptyToNull(List<T> values) {
+        return values == null || values.isEmpty() ? null : values;
     }
 
     /** Open-ended fields grow their own pick list the first time a new value is typed. */

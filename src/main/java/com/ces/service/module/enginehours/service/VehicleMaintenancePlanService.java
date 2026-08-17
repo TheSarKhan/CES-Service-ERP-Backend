@@ -81,9 +81,11 @@ public class VehicleMaintenancePlanService {
                 .notes(request.getNotes())
                 .build();
         plan.setBranchId(vehicle.getBranchId());
-        // A freshly added plan's clock starts now — the vehicle's current reading/today's date is
-        // the baseline the first "next due" is measured from.
-        seedBaseline(plan, vehicle);
+        // A freshly added plan's clock starts now by default — the vehicle's current
+        // reading/today's date is the baseline the first "next due" is measured from, unless the
+        // request names an explicit lastDone* (equipment whose last real service already
+        // happened at a known, different value).
+        seedBaseline(plan, vehicle, request);
         recomputeNextDue(plan);
 
         VehicleMaintenancePlan saved = planRepository.save(plan);
@@ -214,15 +216,27 @@ public class VehicleMaintenancePlanService {
 
     // ── helpers ──────────────────────────────────────────────────────────
 
+    /** Template clones never carry a user-entered baseline — always the vehicle's current reading. */
     private void seedBaseline(VehicleMaintenancePlan plan, Vehicle vehicle) {
+        seedBaseline(plan, vehicle, null);
+    }
+
+    private void seedBaseline(VehicleMaintenancePlan plan, Vehicle vehicle, VehicleMaintenancePlanRequest request) {
         if (plan.getIntervalMeterHours() != null) {
-            plan.setLastDoneEngineHours(vehicle.getCurrentEngineHours() == null ? BigDecimal.ZERO : vehicle.getCurrentEngineHours());
+            BigDecimal override = request != null ? request.getLastDoneEngineHours() : null;
+            plan.setLastDoneEngineHours(override != null
+                    ? override
+                    : (vehicle.getCurrentEngineHours() == null ? BigDecimal.ZERO : vehicle.getCurrentEngineHours()));
         }
         if (plan.getIntervalKm() != null) {
-            plan.setLastDoneKm(vehicle.getCurrentKm() == null ? BigDecimal.ZERO : vehicle.getCurrentKm());
+            BigDecimal override = request != null ? request.getLastDoneKm() : null;
+            plan.setLastDoneKm(override != null
+                    ? override
+                    : (vehicle.getCurrentKm() == null ? BigDecimal.ZERO : vehicle.getCurrentKm()));
         }
         if (plan.getIntervalCalendarDays() != null) {
-            plan.setLastDoneDate(LocalDate.now());
+            LocalDate override = request != null ? request.getLastDoneDate() : null;
+            plan.setLastDoneDate(override != null ? override : LocalDate.now());
         }
     }
 

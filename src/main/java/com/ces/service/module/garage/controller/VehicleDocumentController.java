@@ -5,8 +5,12 @@ import com.ces.service.module.garage.dto.VehicleDocumentRequest;
 import com.ces.service.module.garage.dto.VehicleDocumentResponse;
 import com.ces.service.module.garage.service.VehicleDocumentService;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -44,6 +48,20 @@ public class VehicleDocumentController {
             @RequestParam("file") MultipartFile file) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(documentService.upload(vehicleId, request, file)));
+    }
+
+    @GetMapping("/{documentId}/download")
+    @PreAuthorize("hasAuthority('VEHICLE_READ')")
+    public ResponseEntity<Resource> download(@PathVariable UUID vehicleId, @PathVariable UUID documentId) {
+        VehicleDocumentService.DownloadableFile file = documentService.download(vehicleId, documentId);
+        return ResponseEntity.ok()
+                .contentType(file.contentType())
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(file.fileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString())
+                .body(file.resource());
     }
 
     @DeleteMapping("/{documentId}")
