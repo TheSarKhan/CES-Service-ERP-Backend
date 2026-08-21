@@ -25,7 +25,7 @@ INSERT INTO ces_service.users (
     'System Administrator',
     'admin@ces.az',
     '$2a$10$9YZDvnNqsNhWG741oTORSO0nCLIzu2lIGUx1Cs7wo/ffvIQKZeKoe',  -- bcrypt('Admin@123')
-    NULL,
+    '+994 12 000 00 00',
     'Administrator',
     TRUE,
     0,
